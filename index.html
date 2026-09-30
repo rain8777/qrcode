@@ -217,7 +217,7 @@
 
         <div class="field">
           <label for="linkInput">Link to plant</label>
-          <input type="text" id="linkInput" value="https://claude.ai" spellcheck="false" autocomplete="off">
+          <input type="text" id="linkInput" value="https://Sample.com" spellcheck="false" autocomplete="off">
           <div class="hint" id="linkNote">This is encoded directly — scanning goes straight to it, no middle page.</div>
         </div>
 
@@ -13012,6 +13012,19 @@ function leafGeometry(){
   return g;
 }
 const LEAF_W = 0.55;
+function bladeGeometry(){
+  const g = new T.BufferGeometry();
+  g.setAttribute("position", new T.Float32BufferAttribute([-0.09,0,0, 0.09,0,0, -0.06,0.55,0.06, 0.06,0.55,0.06, 0,1,0.2], 3));
+  g.setIndex([0,1,2, 1,3,2, 2,3,4]);
+  return g;
+}
+const lumOf = c => 0.2126*c.r + 0.7152*c.g + 0.0722*c.b;
+function deepTone(col){                       // same hue, dark enough to scan against the pale plot
+  const c = col.clone(), hsl = {}; c.getHSL(hsl);
+  c.setHSL(hsl.h, Math.min(1, hsl.s*0.9 + 0.05), Math.min(hsl.l*0.55, 0.22));
+  for (let i=0; i<10 && lumOf(c) > 0.06; i++){ c.getHSL(hsl); c.setHSL(hsl.h, hsl.s, hsl.l*0.82); }
+  return c;
+}
 
 function create(canvas, ctx){
   const renderer = new T.WebGLRenderer({ canvas, context: ctx, alpha:true, antialias:true, preserveDrawingBuffer:true });
@@ -13023,7 +13036,7 @@ function create(canvas, ctx){
 
   const leafGeo = leafGeometry();
   const st = { morph:0, time:0, ready:false, L:0, D:0, n:0, P:0, H:0, R:0, running:false, raf:0, anim:null, swayEvery:1, frameNo:0, W:1, Hpx:1 };
-  let group = null, leaves = null, tiles = null, skeleton = null, fall = null, fallData = null;
+  let group = null, leaves = null, tiles = null, skeleton = null, fall = null, fallData = null, blades = null, bd = null, tileTone = null, tileRest = new T.Color();
   let d = {};                                   // per-leaf typed arrays
   const qrCol = new T.Color(), tmpC = new T.Color();
   const _m = new T.Matrix4(), _q = new T.Quaternion(), _e = new T.Euler(0,0,0,"YXZ"), _p = new T.Vector3(), _s = new T.Vector3();
@@ -13039,9 +13052,9 @@ function create(canvas, ctx){
     disposeGroup();
     const { modules, n } = cfg, pal = cfg.palette;
     const spec = SPECIES[cfg.species] || SPECIES.oak;
-    const rnd = mulberry32(hashStr(cfg.seed + "|" + cfg.species));
+    const rnd = mulberry32(hashStr(cfg.seed + "|" + cfg.species)), rndB = mulberry32(hashStr("grass|" + cfg.seed));
     const dark = []; for (let r=0;r<n;r++) for (let c=0;c<n;c++) if (modules[r][c]) dark.push(r,c);
-    const D = dark.length/2, L = D*6, P = n + 8, H = P*0.92;
+    const D = dark.length/2, L = D*6, P = n + 8, H = P*0.66;
     Object.assign(st, { n, D, L, P, H, ready:true });
     qrCol.set(pal.qr);
     group = new T.Group(); scene.add(group);
@@ -13049,9 +13062,14 @@ function create(canvas, ctx){
     // plot: grass rim outside the quiet zone, light field, dark tiles sitting slightly proud
     const rim = new T.Mesh(new T.BoxGeometry(P+3.2,0.3,P+3.2), new T.MeshBasicMaterial({ color:pal.ground })); rim.position.y = -0.3;
     const plate = new T.Mesh(new T.BoxGeometry(P,0.4,P), new T.MeshBasicMaterial({ color:pal.light })); plate.position.y = -0.2;
-    tiles = new T.InstancedMesh(new T.BoxGeometry(1.001,0.14,1.001), new T.MeshBasicMaterial({ color:pal.qr }), D);
+    tiles = new T.InstancedMesh(new T.BoxGeometry(1.001,0.14,1.001), new T.MeshBasicMaterial({ color:0xffffff }), D);
     tiles.frustumCulled = false;
     for (let i=0;i<D;i++){ _m.makeTranslation(dark[2*i+1]-n/2+0.5, 0.07, dark[2*i]-n/2+0.5); tiles.setMatrixAt(i,_m); }
+    tiles.setColorAt(0, qrCol);
+    tileRest.set(pal.ground).multiplyScalar(0.72);
+    const tones = (pal.tones && pal.tones.length ? pal.tones.map(c => new T.Color(c)) : pal.leaves.map(c => deepTone(new T.Color(c))));
+    tileTone = new Float32Array(D*3); const modTone = new Uint16Array(D);
+    for (let i=0;i<D;i++){ const t = tones[Math.floor(rnd()*tones.length)]; modTone[i] = 0; tileTone[3*i]=t.r; tileTone[3*i+1]=t.g; tileTone[3*i+2]=t.b; }
     group.add(rim, plate, tiles);
 
     // tree skeleton
@@ -13063,7 +13081,7 @@ function create(canvas, ctx){
     st.R = maxR + H*spec.leaf*1.1;
 
     // leaves: rest position on the tree, target position inside the module they belong to
-    d = { rp:new Float32Array(L*3), tp:new Float32Array(L*3), rr:new Float32Array(L*3), s0:new Float32Array(L), dl:new Float32Array(L), ph:new Float32Array(L), arc:new Float32Array(L), rc:new Float32Array(L*3), tw:new Float32Array(L) };
+    d = { tc:new Float32Array(L*3), rp:new Float32Array(L*3), tp:new Float32Array(L*3), rr:new Float32Array(L*3), s0:new Float32Array(L), dl:new Float32Array(L), ph:new Float32Array(L), arc:new Float32Array(L), rc:new Float32Array(L*3), tw:new Float32Array(L) };
     const cols = pal.leaves.map(c => new T.Color(c)), acc = new T.Color(pal.accent);
     const T0 = grown.tips.length, spread = H*spec.leaf;
     for (let i=0;i<L;i++){
@@ -13083,6 +13101,7 @@ function create(canvas, ctx){
       const lit = 0.72 + 0.4*clamp01(py/H) + 0.18*clamp01(Math.hypot(px,pz)/st.R) + (rnd()-0.5)*0.14;
       d.rc[3*i]=Math.min(1,base.r*lit); d.rc[3*i+1]=Math.min(1,base.g*lit); d.rc[3*i+2]=Math.min(1,base.b*lit);
       const m = Math.floor(i/6), k = i%6;
+      d.tc[3*i]=tileTone[3*m]; d.tc[3*i+1]=tileTone[3*m+1]; d.tc[3*i+2]=tileTone[3*m+2];
       d.tp[3*i]   = dark[2*m+1]-n/2+0.5 + (k%3-1)/3;
       d.tp[3*i+1] = 0.2;
       d.tp[3*i+2] = dark[2*m]-n/2+0.5 + (Math.floor(k/3)-0.5)*0.5;
@@ -13091,6 +13110,23 @@ function create(canvas, ctx){
     leaves.frustumCulled = false;
     leaves.setColorAt(0, qrCol);
     group.add(leaves);
+
+    // grass: tufts standing on every dark module, plus a meadow around the plot
+    const gc = new T.Color(pal.ground), nT = D*4, half = P/2 + 1.55, ring = [];
+    const nR = Math.min(5200, Math.round(((2*half)*(2*half) - P*P)*8));
+    const NB = nT + nR;
+    bd = { x:new Float32Array(NB), y:new Float32Array(NB), z:new Float32Array(NB), r:new Float32Array(NB), h:new Float32Array(NB), l:new Float32Array(NB), ph:new Float32Array(NB), tile:new Uint8Array(NB), nT, NB };
+    blades = new T.InstancedMesh(bladeGeometry(), new T.MeshBasicMaterial({ side:T.DoubleSide }), NB);
+    blades.frustumCulled = false; blades.setColorAt(0, gc);
+    for (let i=0;i<NB;i++){
+      let x, z, y, h, shade;
+      if (i < nT){ const mI = Math.floor(i/4); x = dark[2*mI+1]-n/2+0.5 + (rndB()-0.5)*0.9; z = dark[2*mI]-n/2+0.5 + (rndB()-0.5)*0.9; y = 0.14; h = 0.7 + rndB()*0.7; shade = 0.55 + rndB()*0.5; bd.tile[i] = 1; }
+      else { do { x = (rndB()*2-1)*half; z = (rndB()*2-1)*half; } while (Math.abs(x) < P/2 + 0.05 && Math.abs(z) < P/2 + 0.05); y = -0.15; h = 1.2 + rndB()*1.6; shade = 0.6 + rndB()*0.7; }
+      bd.x[i]=x; bd.y[i]=y; bd.z[i]=z; bd.h[i]=h; bd.r[i]=rndB()*6.283; bd.l[i]=(rndB()-0.5)*0.5; bd.ph[i]=rndB()*6.283;
+      tmpC.copy(gc).multiplyScalar(shade); tmpC.g = Math.min(1, tmpC.g*1.05);
+      blades.setColorAt(i, tmpC);
+    }
+    group.add(blades);
 
     // a few falling leaves that only ever land outside the plot
     const F = 26; fallData = { x:new Float32Array(F), z:new Float32Array(F), t0:new Float32Array(F), sp:new Float32Array(F), c:[] };
@@ -13117,7 +13153,7 @@ function create(canvas, ctx){
     st._lastM = m;
     const mArr = leaves.instanceMatrix.array, cArr = leaves.instanceColor.array;
     const sw = m < 0.02 ? 1 : 0;                                   // sway only while resting
-    const tsx = 0.9/LEAF_W*0.62, tsz = 0.5;
+    const tsx = 0.34/LEAF_W, tsz = 0.5;
     for (let i=0;i<L;i++){
       const u = smooth(clamp01((m - d.dl[i])/(1-DELAY_MAX)));
       const x0 = d.rp[3*i], y0 = d.rp[3*i+1], z0 = d.rp[3*i+2];
@@ -13133,12 +13169,26 @@ function create(canvas, ctx){
       _m.compose(_p,_q,_s).toArray(mArr, 16*i);
       if (colorsChanged){
         const k = smooth(clamp01((u-0.15)/0.85));
-        cArr[3*i] = lerp(d.rc[3*i], qrCol.r, k); cArr[3*i+1] = lerp(d.rc[3*i+1], qrCol.g, k); cArr[3*i+2] = lerp(d.rc[3*i+2], qrCol.b, k);
+        cArr[3*i] = lerp(d.rc[3*i], d.tc[3*i], k); cArr[3*i+1] = lerp(d.rc[3*i+1], d.tc[3*i+1], k); cArr[3*i+2] = lerp(d.rc[3*i+2], d.tc[3*i+2], k);
       }
     }
     leaves.instanceMatrix.needsUpdate = true;
     if (colorsChanged) leaves.instanceColor.needsUpdate = true;
 
+    // tiles go from grass-green to their module tone as the code resolves
+    if (colorsChanged){
+      const tk = smooth(clamp01((m-0.1)/0.7)), ta = tiles.instanceColor.array;
+      for (let i=0;i<st.D;i++){ ta[3*i] = lerp(tileRest.r, tileTone[3*i], tk); ta[3*i+1] = lerp(tileRest.g, tileTone[3*i+1], tk); ta[3*i+2] = lerp(tileRest.b, tileTone[3*i+2], tk); }
+      tiles.instanceColor.needsUpdate = true;
+    }
+    // grass on the modules withdraws; the meadow around the plot stays (shorter from above)
+    { const gT = 1 - smooth(clamp01(m*1.4)), gR = 1 - smooth(clamp01(m*1.4)), bArr = blades.instanceMatrix.array;
+      for (let i=0;i<bd.NB;i++){
+        const hs = bd.h[i]*(bd.tile[i] ? gT : gR);
+        _p.set(bd.x[i], bd.y[i], bd.z[i]); _q.setFromEuler(_e.set(bd.l[i], bd.r[i], Math.sin(t*1.6 + bd.ph[i])*0.14 + bd.l[i]*0.5, "YXZ")); { const sc = hs < 0.02 ? 0.00001 : hs; _s.set(hs < 0.02 ? 0.00001 : 1.7, sc, Math.min(1, sc)); }
+        _m.compose(_p,_q,_s).toArray(bArr, 16*i);
+      }
+      blades.instanceMatrix.needsUpdate = true; }
     const sk = 1 - smooth(clamp01(m*2));                           // woody skeleton withdraws into the plot
     skeleton.visible = sk > 0.002; skeleton.scale.setScalar(Math.max(sk, 0.0001));
     // falling leaves (hidden as soon as the code starts to resolve)
@@ -13156,8 +13206,8 @@ function create(canvas, ctx){
 
   function fit(){
     const m = st.morph, e = m < 0.5 ? 2*m*m : 1 - Math.pow(-2*m+2,2)/2;
-    const az = lerp(Math.PI/4, 0, e), el = lerp(0.56, 1.5533, e);          // 32° -> 89°
-    const ty = lerp(st.H*0.40, 0, e);
+    const az = lerp(Math.PI/4, 0, e), el = lerp(0.74, 1.5533, e);          // 32° -> 89°
+    const ty = lerp(st.H*0.28, 0, e);
     camera.position.set(Math.sin(az)*Math.cos(el)*200, ty + Math.sin(el)*200, Math.cos(az)*Math.cos(el)*200);
     camera.up.set(0,1,0); camera.lookAt(0,ty,0); camera.updateMatrixWorld(); camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
     const h = st.P/2 + 1.7, s = 1 - smooth(clamp01(m*1.8)), R = st.R*s, H = st.H*s;
@@ -13165,7 +13215,7 @@ function create(canvas, ctx){
     if (s > 0.001) for (const y of [0,H]) for (const sx of [-1,1]) for (const sz of [-1,1]) pts.push([sx*R, y, sz*R]);
     let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9; const v = new T.Vector3();
     for (const p of pts){ v.set(p[0],p[1],p[2]).applyMatrix4(camera.matrixWorldInverse); x0=Math.min(x0,v.x); x1=Math.max(x1,v.x); y0=Math.min(y0,v.y); y1=Math.max(y1,v.y); }
-    const pad = 1.07, asp = st.W/st.Hpx; let w = (x1-x0)*pad, hh = (y1-y0)*pad; const cx=(x0+x1)/2, cy=(y0+y1)/2;
+    const pad = 1.03, asp = st.W/st.Hpx; let w = (x1-x0)*pad, hh = (y1-y0)*pad; const cx=(x0+x1)/2, cy=(y0+y1)/2;
     if (w/hh > asp) hh = w/asp; else w = hh*asp;
     camera.left=cx-w/2; camera.right=cx+w/2; camera.top=cy+hh/2; camera.bottom=cy-hh/2; camera.updateProjectionMatrix();
   }
@@ -13278,6 +13328,7 @@ root.QRTree = { create, SPECIES };
   function contrast(a,b){ const A=lum(a),B=lum(b); return (Math.max(A,B)+0.05)/(Math.min(A,B)+0.05); }
   function mix(a,b,t){ const x=hexToRgb(a),y=hexToRgb(b); return "#"+x.map((v,i)=>Math.round(v+(y[i]-v)*t).toString(16).padStart(2,"0")).join(""); }
   // darken a decorative colour until it has enough contrast to scan
+  function deepTone(col,bg,dark){ let c=col; for(let i=0;i<14&&contrast(c,bg)<7;i++) c=mix(c,dark,0.22); return c; }
   function safeInk(col,bg,dark){ let c=col; for(let i=0;i<12&&contrast(c,bg)<4;i++) c=mix(c,dark,0.25); return c; }
 
   function buildMatrix(text){
@@ -13708,9 +13759,10 @@ root.QRTree = { create, SPECIES };
     const light = state.reliable ? "#FFFFFF" : state.custom ? state.bgColor : "#FBF9F1";
     const pat = state.reliable ? "square" : state.pattern, eye = state.reliable ? "square" : state.eye;
     let svg = `<svg viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QR code for ${escXml(target())}"><rect width="${size}" height="${size}" fill="${light}" rx="16"/>`;
+    const tones = (state.reliable || state.custom) ? [ink] : theme.leaves.map(c => deepTone(c, light, theme.ink));
     for (let r=0;r<n;r++) for (let c=0;c<n;c++){
       if (!modules[r][c] || isFinderZone(n, r, c)) continue;
-      svg += dataModuleShape((quiet+c)*cell, (quiet+r)*cell, cell, pat, ink);
+      svg += dataModuleShape((quiet+c)*cell, (quiet+r)*cell, cell, pat, tones[(r*7+c*13) % tones.length]);
     }
     for (const [er,ec] of [[0,0],[0,n-7],[n-7,0]]) svg += drawEye((quiet+ec)*cell, (quiet+er)*cell, cell, eye, ink, light);
     if (state.logoDataUrl){
@@ -13746,7 +13798,7 @@ root.QRTree = { create, SPECIES };
     const theme = SEASONS[state.season];
     const light = state.reliable ? "#FFFFFF" : state.custom ? state.bgColor : "#FBF9F1";
     const qr = state.reliable ? "#000000" : state.custom ? state.barColor : theme.ink;
-    return { leaves:theme.leaves, accent:theme.accent, bark:QRTree.SPECIES[state.species].bark, qr, light, ground:theme.ground };
+    return { leaves:theme.leaves, accent:theme.accent, bark:QRTree.SPECIES[state.species].bark, qr, light, ground:theme.ground, tones:(state.reliable || state.custom) ? [qr] : null };
   }
   function showOverlay(on){
     const wrap = document.getElementById("treeWrap"), glw = document.getElementById("glWrap");
