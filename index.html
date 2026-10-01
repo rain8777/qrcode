@@ -13045,7 +13045,7 @@ function branchGeometry(segs, sides){
 function leafGeometry(){
   const sh = new T.Shape();
   sh.moveTo(0,0); sh.bezierCurveTo(0.36,0.16, 0.36,0.72, 0,1); sh.bezierCurveTo(-0.36,0.72, -0.36,0.16, 0,0);
-  const g = new T.ShapeGeometry(sh, 10);
+  const g = new T.ShapeGeometry(sh, 4);
   { const p = g.attributes.position, uv = g.attributes.uv; for (let i=0;i<p.count;i++) uv.setXY(i, (p.getX(i)+0.3)/0.6, p.getY(i)); }
   g.translate(0,-0.5,0); g.rotateX(-Math.PI/2);     // lies flat, tip toward -z
   return g;
@@ -13074,7 +13074,7 @@ function create(canvas, ctx, opts){
   const toTexture = opts.toTexture || (c => new T.CanvasTexture(c));
   const mk = opts.makeCanvas || ((w,h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; });
   const renderer = new T.WebGLRenderer({ canvas, context: ctx, alpha:true, antialias:true, preserveDrawingBuffer:true });
-  let maxAniso = 1; try { maxAniso = Math.max(1, Math.min(16, renderer.capabilities.getMaxAnisotropy())); } catch(e){}
+  let maxAniso = 1; try { maxAniso = Math.max(1, Math.min(4, renderer.capabilities.getMaxAnisotropy())); } catch(e){}
   function texFrom(c, repeat){
     const t = toTexture(c); t.colorSpace = T.SRGBColorSpace; t.generateMipmaps = true;
     t.minFilter = T.LinearMipmapLinearFilter; t.magFilter = T.LinearFilter; t.anisotropy = maxAniso;
@@ -13106,7 +13106,7 @@ function create(canvas, ctx, opts){
     g.addColorStop(0,"rgba(0,0,0,0.55)"); g.addColorStop(0.55,"rgba(0,0,0,0.22)"); g.addColorStop(1,"rgba(0,0,0,0)"); x.fillStyle = g; x.fillRect(0,0,256,256);
     return texFrom(c); })();
   renderer.setClearColor(0x000000, 0);
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.autoUpdate = false; renderer.shadowMap.type = T.PCFSoftShadowMap;
   const scene = new T.Scene();
   const camera = new T.OrthographicCamera(-10,10,10,-10,0.1,600);
   const key = new T.DirectionalLight(0xffffff, 0.82*Math.PI);
@@ -13116,7 +13116,40 @@ function create(canvas, ctx, opts){
   scene.add(hemi, key, key.target);
 
   const leafGeo = leafGeometry();
-  const st = { planeGeom:null, planeTex:null, morph:0, time:0, ready:false, L:0, D:0, n:0, P:0, H:0, R:0, running:false, raf:0, anim:null, swayEvery:1, frameNo:0, W:1, Hpx:1 };
+  const PROJ = "#include <project_vertex>";
+  function swayLeaves(shader){
+    shader.uniforms.uTime = uni.uTime; shader.uniforms.uSway = uni.uSway; shader.uniforms.uInvH = uni.uInvH;
+    shader.vertexShader = "uniform float uTime; uniform float uSway; uniform float uInvH;\n" + shader.vertexShader.replace(PROJ, `
+      vec4 mvPosition = vec4( transformed, 1.0 );
+      mvPosition = instanceMatrix * mvPosition;
+      float ph = instanceMatrix[3].x*1.9 + instanceMatrix[3].z*2.7;
+      float hh = clamp(instanceMatrix[3].y*uInvH, 0.0, 1.0);
+      float amp = pow(hh, 1.3)*0.55*uSway;
+      mvPosition.x += sin(uTime*1.25 + ph)*amp;
+      mvPosition.z += cos(uTime*0.95 + ph*1.3)*amp*0.6;
+      mvPosition.y += sin(uTime*2.1 + ph)*amp*0.18;
+      mvPosition = modelViewMatrix * mvPosition;
+      gl_Position = projectionMatrix * mvPosition;`);
+  }
+  function swayGrass(shader){
+    shader.uniforms.uTime = uni.uTime;
+    shader.vertexShader = "uniform float uTime;\n" + shader.vertexShader.replace(PROJ, `
+      vec4 mvPosition = vec4( transformed, 1.0 );
+      mvPosition = instanceMatrix * mvPosition;
+      float gh = max(0.0, mvPosition.y - instanceMatrix[3].y);
+      mvPosition.x += sin(uTime*1.7 + instanceMatrix[3].x*1.7 + instanceMatrix[3].z*2.3)*gh*0.13;
+      mvPosition.z += cos(uTime*1.3 + instanceMatrix[3].z*1.9)*gh*0.07;
+      mvPosition = modelViewMatrix * mvPosition;
+      gl_Position = projectionMatrix * mvPosition;`);
+  }
+  const LEVELS = [ { pr:2,    shadow:2048, ring:1.0,  lit:1.0,  fall:1.0, cap:0  },
+                   { pr:1.5,  shadow:1024, ring:0.85, lit:0.85, fall:1.0, cap:0  },
+                   { pr:1.25, shadow:0,    ring:0.6,  lit:0.6,  fall:0.7, cap:0  },
+                   { pr:1,    shadow:0,    ring:0.4,  lit:0.4,  fall:0.5, cap:0  },
+                   { pr:0.85, shadow:0,    ring:0.2,  lit:0.2,  fall:0.35, cap:30 } ];
+  const GRID = { 6:[3,2], 4:[2,2], 2:[1,2] };
+  const uni = { uTime:{ value:0 }, uSway:{ value:1 }, uInvH:{ value:0.03 } };
+  const st = { level:opts.level || 0, minLevel:opts.level || 0, maxPR:1, ema:16, slowT:0, fastT:0, lastR:0, warmUntil:0, needShadow:true, frameSkip:0, tsx:0.62, tsz:0.5, planeGeom:null, planeTex:null, morph:0, time:0, ready:false, L:0, D:0, n:0, P:0, H:0, R:0, running:false, raf:0, anim:null, swayEvery:1, frameNo:0, W:1, Hpx:1 };
   let skelGroup = null, litter = null, ld = null, planeMesh = null, shadowMesh = null, group = null, leaves = null, tiles = null, skeleton = null, fall = null, fallData = null, blades = null, bd = null, tileTone = null, tileRest = new T.Color();
   let d = {};                                   // per-leaf typed arrays
   const qrCol = new T.Color(), tmpC = new T.Color();
@@ -13135,7 +13168,9 @@ function create(canvas, ctx, opts){
     const spec = SPECIES[cfg.species] || SPECIES.oak;
     const rnd = mulberry32(hashStr(cfg.seed + "|" + cfg.species)), rndB = mulberry32(hashStr("grass|" + cfg.seed));
     const dark = []; for (let r=0;r<n;r++) for (let c=0;c<n;c++) if (modules[r][c]) dark.push(r,c);
-    const D = dark.length/2, L = D*6, P = n + 8, H = P*0.66;
+    const q = cfg.quality || {}, PM = q.perMod || 6, TB = q.tileBlades || 4, RK = q.ring == null ? 1 : q.ring;
+    const D = dark.length/2, L = D*PM, P = n + 8, H = P*0.66;
+    const grid = GRID[PM] || GRID[6]; st.tsx = (1/grid[0])/LEAF_W; st.tsz = 1/grid[1]; st.PM = PM; uni.uInvH.value = 1/H;
     Object.assign(st, { n, D, L, P, H, ready:true });
     qrCol.set(pal.qr);
     const dens = pal.density == null ? 1 : pal.density, rndV = mulberry32(hashStr("vis|" + cfg.seed)), hk = pal.grassK || 1;
@@ -13193,29 +13228,29 @@ function create(canvas, ctx, opts){
       if (pal.accent && rnd() < (pal.blossomRate || 0)) base.copy(acc);
       const lit = 0.72 + 0.4*clamp01(py/H) + 0.18*clamp01(Math.hypot(px,pz)/st.R) + (rnd()-0.5)*0.14;
       d.rc[3*i]=Math.min(1,base.r*lit); d.rc[3*i+1]=Math.min(1,base.g*lit); d.rc[3*i+2]=Math.min(1,base.b*lit);
-      const m = Math.floor(i/6), k = i%6;
+      const m = Math.floor(i/PM), k = i%PM;
       d.tc[3*i]=tileTone[3*m]; d.tc[3*i+1]=tileTone[3*m+1]; d.tc[3*i+2]=tileTone[3*m+2];
-      d.tp[3*i]   = dark[2*m+1]-n/2+0.5 + (k%3-1)/3;
+      d.tp[3*i]   = dark[2*m+1]-n/2+0.5 + ((k%grid[0]) + 0.5)/grid[0] - 0.5;
       d.tp[3*i+1] = 0.2;
-      d.tp[3*i+2] = dark[2*m]-n/2+0.5 + (Math.floor(k/3)-0.5)*0.5;
+      d.tp[3*i+2] = dark[2*m]-n/2+0.5 + (Math.floor(k/grid[0]) + 0.5)/grid[1] - 0.5;
     }
     shadowMesh = new T.Mesh(new T.PlaneGeometry(1,1).rotateX(-Math.PI/2), new T.MeshBasicMaterial({ map:shadowTex, transparent:true, depthWrite:false }));
     shadowMesh.position.y = 0.22; shadowMesh.scale.set(st.R*2.5, 1, st.R*2.5); group.add(shadowMesh);
-    leaves = new T.InstancedMesh(leafGeo, new T.MeshLambertMaterial({ map:leafTex, side:T.DoubleSide, shadowSide:T.DoubleSide }), L);
+    leaves = new T.InstancedMesh(leafGeo, (() => { const mt = new T.MeshLambertMaterial({ map:leafTex, side:T.DoubleSide, shadowSide:T.DoubleSide }); mt.onBeforeCompile = swayLeaves; return mt; })(), L);
     leaves.frustumCulled = false; leaves.castShadow = true; leaves.receiveShadow = true;
     leaves.setColorAt(0, qrCol);
     group.add(leaves);
 
     // grass: tufts standing on every dark module, plus a meadow around the plot
-    const gc = new T.Color(pal.grass || pal.ground), nT = D*4, half = P/2 + 1.55, ring = [];
-    const nR = Math.min(5200, Math.round(((2*half)*(2*half) - P*P)*8));
+    const gc = new T.Color(pal.grass || pal.ground), nT = D*TB, half = P/2 + 1.55, ring = [];
+    const nR = Math.min(5200, Math.round(((2*half)*(2*half) - P*P)*8*RK));
     const NB = nT + nR;
     bd = { x:new Float32Array(NB), y:new Float32Array(NB), z:new Float32Array(NB), r:new Float32Array(NB), h:new Float32Array(NB), l:new Float32Array(NB), ph:new Float32Array(NB), tile:new Uint8Array(NB), nT, NB };
-    blades = new T.InstancedMesh(bladeGeometry(), new T.MeshBasicMaterial({ vertexColors:true, side:T.DoubleSide }), NB);
+    blades = new T.InstancedMesh(bladeGeometry(), (() => { const mt = new T.MeshBasicMaterial({ vertexColors:true, side:T.DoubleSide }); mt.onBeforeCompile = swayGrass; return mt; })(), NB);
     blades.frustumCulled = false; blades.setColorAt(0, gc);
     for (let i=0;i<NB;i++){
       let x, z, y, h, shade;
-      if (i < nT){ const mI = Math.floor(i/4); x = dark[2*mI+1]-n/2+0.5 + (rndB()-0.5)*0.9; z = dark[2*mI]-n/2+0.5 + (rndB()-0.5)*0.9; y = 0.14; h = (0.7 + rndB()*0.7)*hk; shade = 0.55 + rndB()*0.5; bd.tile[i] = 1; }
+      if (i < nT){ const mI = Math.floor(i/TB); x = dark[2*mI+1]-n/2+0.5 + (rndB()-0.5)*0.9; z = dark[2*mI]-n/2+0.5 + (rndB()-0.5)*0.9; y = 0.14; h = (0.7 + rndB()*0.7)*hk; shade = 0.55 + rndB()*0.5; bd.tile[i] = 1; }
       else { do { x = (rndB()*2-1)*half; z = (rndB()*2-1)*half; } while (Math.abs(x) < P/2 + 0.05 && Math.abs(z) < P/2 + 0.05); y = -0.15; h = (1.2 + rndB()*1.6)*hk; shade = 0.6 + rndB()*0.7; }
       bd.x[i]=x; bd.y[i]=y; bd.z[i]=z; bd.h[i]=h; bd.r[i]=rndB()*6.283; bd.l[i]=(rndB()-0.5)*0.5; bd.ph[i]=rndB()*6.283;
       tmpC.copy(gc).multiplyScalar(shade); tmpC.g = Math.min(1, tmpC.g*1.05);
@@ -13250,7 +13285,7 @@ function create(canvas, ctx, opts){
     planeMesh.renderOrder = 5; planeMesh.visible = false; group.add(planeMesh);
     applyPlane();
     { const sc = key.shadow.camera, e = P*0.78; sc.left = -e; sc.right = e; sc.top = e; sc.bottom = -e; sc.near = 1; sc.far = 320; sc.updateProjectionMatrix(); key.target.position.set(0, 0, 0); }
-    st.swayEvery = L > 9000 ? 3 : L > 4500 ? 2 : 1;
+    st.warmUntil = performance.now() + 2500; st.needShadow = true; applyLevel();
     update(st.morph, true);
     fit();
     render();
@@ -13270,21 +13305,19 @@ function create(canvas, ctx, opts){
   function update(m, force){
     if (!st.ready) return;
     const L = st.L, t = st.time, H = st.H;
+    uni.uTime.value = t;
     const colorsChanged = force || m !== st._lastM;
     st._lastM = m;
     const mArr = leaves.instanceMatrix.array, cArr = leaves.instanceColor.array;
-    const sw = m < 0.02 ? 1 : 0;                                   // sway only while resting
-    const tsx = 0.34/LEAF_W, tsz = 0.5;
+    uni.uSway.value = 1 - clamp01(m*14);                           // sway (on the GPU) only while resting
+    const moved = force || m !== st._lastMB;
+    st._lastMB = m;
+    const tsx = st.tsx, tsz = st.tsz;
     for (let i=0;i<L;i++){
       const u = smooth(clamp01((m - d.dl[i])/(1-DELAY_MAX)));
       const x0 = d.rp[3*i], y0 = d.rp[3*i+1], z0 = d.rp[3*i+2];
       let px = lerp(x0, d.tp[3*i], u), py = lerp(y0, d.tp[3*i+1], u) + Math.sin(Math.PI*u)*d.arc[i], pz = lerp(z0, d.tp[3*i+2], u);
       let rz = d.rr[3*i+2]*(1-u), ry = d.rr[3*i+1]*(1-u) + Math.sin(Math.PI*u)*d.tw[i], rx = d.rr[3*i]*(1-u);
-      if (u < 1){
-        const amp = Math.pow(clamp01(y0/H), 1.3)*0.55*(1-u);
-        px += Math.sin(t*1.25 + d.ph[i])*amp; pz += Math.cos(t*0.95 + d.ph[i]*1.3)*amp*0.6;
-        rz += Math.sin(t*2.1 + d.ph[i])*0.22*(1-u); rx += Math.cos(t*1.7 + d.ph[i])*0.14*(1-u);
-      }
       const s0 = d.s0[i];
       _p.set(px,py,pz); _q.setFromEuler(_e.set(rx,ry,rz,"YXZ")); { const s1 = s0*d.vis[i]; _s.set(lerp(s1, tsx, u), 1, lerp(s1, tsz, u)); }
       _m.compose(_p,_q,_s).toArray(mArr, 16*i);
@@ -13302,14 +13335,14 @@ function create(canvas, ctx, opts){
       for (let i=0;i<st.D;i++){ ta[3*i] = lerp(tileRest.r, tileTone[3*i], tk); ta[3*i+1] = lerp(tileRest.g, tileTone[3*i+1], tk); ta[3*i+2] = lerp(tileRest.b, tileTone[3*i+2], tk); }
       tiles.instanceColor.needsUpdate = true;
     }
-    if (litter){ const gl = 1 - smooth(clamp01(m*1.4)); const la = litter.instanceMatrix.array;
+    if (litter && moved){ const gl = 1 - smooth(clamp01(m*1.4)); const la = litter.instanceMatrix.array;
       for (let i=0;i<ld.N;i++){ _p.set(ld.x[i], -0.13, ld.z[i]); _q.setFromEuler(_e.set(0, ld.r[i], 0, "YXZ")); const sc = Math.max(0.00001, ld.s[i]*gl); _s.set(sc, 1, sc); _m.compose(_p,_q,_s).toArray(la, 16*i); }
       litter.instanceMatrix.needsUpdate = true; }
     // grass on the modules withdraws; the meadow around the plot stays (shorter from above)
-    { const gT = 1 - smooth(clamp01(m*1.4)), gR = 1 - smooth(clamp01(m*1.4)), bArr = blades.instanceMatrix.array;
+    if (moved) { const gT = 1 - smooth(clamp01(m*1.4)), gR = gT, bArr = blades.instanceMatrix.array;
       for (let i=0;i<bd.NB;i++){
         const hs = bd.h[i]*(bd.tile[i] ? gT : gR);
-        _p.set(bd.x[i], bd.y[i], bd.z[i]); _q.setFromEuler(_e.set(bd.l[i], bd.r[i], Math.sin(t*1.6 + bd.ph[i])*0.14 + bd.l[i]*0.5, "YXZ")); { const sc = hs < 0.02 ? 0.00001 : hs; _s.set(hs < 0.02 ? 0.00001 : 1.7, sc, Math.min(1, sc)); }
+        _p.set(bd.x[i], bd.y[i], bd.z[i]); _q.setFromEuler(_e.set(bd.l[i], bd.r[i], bd.l[i]*0.5, "YXZ")); { const sc = hs < 0.02 ? 0.00001 : hs; _s.set(hs < 0.02 ? 0.00001 : 1.7, sc, Math.min(1, sc)); }
         _m.compose(_p,_q,_s).toArray(bArr, 16*i);
       }
       blades.instanceMatrix.needsUpdate = true; }
@@ -13322,17 +13355,46 @@ function create(canvas, ctx, opts){
       hemi.color.copy(st.hemiSky || _white).lerp(_white, flat); hemi.groundColor.set(0x7d8a5a).lerp(_white, flat); }
     const sk = 1 - smooth(clamp01(m*2));                           // woody skeleton withdraws into the plot
     skelGroup.visible = sk > 0.002; skelGroup.scale.setScalar(Math.max(sk, 0.0001));
-    // falling leaves (hidden as soon as the code starts to resolve)
     fall.visible = st.FN > 0 && m < 0.02;
-    if (fall.visible){
-      for (let i=0;i<st.FN;i++){
-        const ph = ((t + fallData.t0[i]) % 9)/9, y = lerp(H*0.75, 0.3, ph);
-        _p.set(fallData.x[i] + Math.sin(t*0.9 + i)*1.4, y, fallData.z[i] + Math.cos(t*0.7 + i*2)*1.2);
-        _q.setFromEuler(_e.set(Math.sin(t*1.8+i)*0.9, t*fallData.sp[i]*0.4, Math.cos(t*1.4+i)*0.9,"YXZ"));
-        _s.set(1.1,1,1.1); _m.compose(_p,_q,_s); fall.setMatrixAt(i,_m);
-      }
-      fall.instanceMatrix.needsUpdate = true;
+    if (fall.visible) updateFall(st.time);
+    st.needShadow = true;
+  }
+  function updateFall(t){
+    const H = st.H, n = Math.floor(st.FN*(LEVELS[st.level].fall));
+    fall.count = n;
+    for (let i=0;i<n;i++){
+      const ph = ((t + fallData.t0[i]) % 9)/9, y = lerp(H*0.75, 0.3, ph);
+      _p.set(fallData.x[i] + Math.sin(t*0.9 + i)*1.4, y, fallData.z[i] + Math.cos(t*0.7 + i*2)*1.2);
+      _q.setFromEuler(_e.set(Math.sin(t*1.8+i)*0.9, t*fallData.sp[i]*0.4, Math.cos(t*1.4+i)*0.9,"YXZ"));
+      _s.set(1.1,1,1.1); _m.compose(_p,_q,_s); fall.setMatrixAt(i,_m);
     }
+    fall.instanceMatrix.needsUpdate = true;
+  }
+
+  // ---- adaptive quality: starts from the device's tier, steps down whenever frames run long ----
+  function applyLevel(){
+    const lv = LEVELS[st.level];
+    renderer.setPixelRatio(Math.max(0.75, Math.min(st.maxPR, lv.pr))); renderer.setSize(st.W, st.Hpx, false);
+    const on = lv.shadow > 0;
+    if (key.castShadow !== on || key.shadow.mapSize.x !== (lv.shadow || key.shadow.mapSize.x)){
+      key.castShadow = on;
+      if (on && key.shadow.mapSize.x !== lv.shadow){ key.shadow.mapSize.set(lv.shadow, lv.shadow); if (key.shadow.map){ key.shadow.map.dispose(); key.shadow.map = null; } }
+      if (group) group.traverse(o => { if (o.material) o.material.needsUpdate = true; });
+    }
+    if (st.ready){
+      if (blades) blades.count = Math.floor(bd.nT + (bd.NB - bd.nT)*Math.min(1, lv.ring));
+      if (litter) litter.count = Math.floor(ld.N*lv.lit);
+    }
+    st.needShadow = true;
+  }
+  function perfTick(){
+    const now = performance.now(), dt = now - st.lastR; st.lastR = now;
+    if (!st.ready || dt <= 0 || dt > 250 || now < st.warmUntil || (typeof document !== "undefined" && document.hidden)) return;
+    const lv = LEVELS[st.level], thr = Math.max(27, lv.cap ? 1000/lv.cap*1.4 : 0);
+    st.ema = st.ema*0.9 + dt*0.1;
+    if (st.ema > thr){ st.slowT += dt; st.fastT = 0;
+      if (st.slowT > 1100 && st.level < LEVELS.length - 1){ st.level++; st.slowT = 0; st.ema = 16; st.warmUntil = now + 800; applyLevel(); if (opts.onLevel) opts.onLevel(st.level); } }
+    else { st.slowT = Math.max(0, st.slowT - dt); if (st.ema < 11 && st.level > st.minLevel){ st.fastT += dt; if (st.fastT > 25000){ st.level--; st.fastT = 0; applyLevel(); } } else st.fastT = 0; }
   }
 
   function fit(){
@@ -13352,20 +13414,28 @@ function create(canvas, ctx, opts){
     if (w/hh > asp) hh = w/asp; else w = hh*asp;
     camera.left=cx-w/2; camera.right=cx+w/2; camera.top=cy+hh/2; camera.bottom=cy-hh/2; camera.updateProjectionMatrix();
   }
-  function render(){ renderer.render(scene, camera); }
-  function resize(w, h, pr){ st.W = w; st.Hpx = h; renderer.setPixelRatio(pr||1); renderer.setSize(w, h, false); if (st.ready){ fit(); render(); } }
+  function render(){
+    if (st.needShadow && key.castShadow){ renderer.shadowMap.needsUpdate = true; }
+    st.needShadow = false;
+    renderer.render(scene, camera);
+    perfTick();
+  }
+  function resize(w, h, pr){ st.W = w; st.Hpx = h; st.maxPR = pr || 1; applyLevel(); if (st.ready){ fit(); render(); } }
   function setMorph(m){ st.morph = clamp01(m); update(st.morph); fit(); render(); }
 
   function frame(now){
     st.raf = 0; if (!st.running) return;
-    st.time = now/1000; st.frameNo++;
+    const cap = LEVELS[st.level].cap;
+    if (cap && now - (st._lastDraw || 0) < 1000/cap - 3){ st.raf = requestAnimationFrame(frame); return; }
+    st._lastDraw = now; st.time = now/1000; uni.uTime.value = st.time; st.frameNo++;
     if (st.anim){
       const a = st.anim, kk = clamp01((now - a.t0)/a.ms), k = kk < 0.5 ? 4*kk*kk*kk : 1 - Math.pow(-2*kk+2, 3)/2;
       st.morph = lerp(a.from, a.to, k);
       if (kk >= 1){ const cb = a.done; st.anim = null; st.morph = a.to; update(st.morph, true); fit(); render(); if (cb) cb(); }
       else { update(st.morph); fit(); render(); }
     } else if (st.morph < 0.02){
-      if (st.frameNo % st.swayEvery === 0){ update(st.morph); render(); }
+      if (st.FN > 0) updateFall(st.time);                        // resting tree: leaves + grass sway on the GPU, nothing else to compute
+      render();
     } else { st.running = false; return; }                          // settled as a code: stop drawing
     st.raf = requestAnimationFrame(frame);
   }
@@ -13373,7 +13443,7 @@ function create(canvas, ctx, opts){
   function stop(){ st.running = false; if (st.raf) cancelAnimationFrame(st.raf); st.raf = 0; }
   function animateTo(to, ms, done){ st.anim = { from:st.morph, to, ms, t0:performance.now(), done }; start(); }
 
-  return { build, setTransition, setPlaneGeom, setPlaneCanvas, setMorph, animateTo, resize, start, stop, render, st, canvas:renderer.domElement, isReady:()=>st.ready, dispose(){ stop(); disposeGroup(); renderer.dispose(); } };
+  return { build, setTransition, applyLevel, uni, setPlaneGeom, setPlaneCanvas, setMorph, animateTo, resize, start, stop, render, st, canvas:renderer.domElement, isReady:()=>st.ready, dispose(){ stop(); disposeGroup(); renderer.dispose(); } };
 }
 root.QRTree = { create, SPECIES };
 })(typeof window !== "undefined" ? window : globalThis);
@@ -14209,6 +14279,19 @@ root.QRTree = { create, SPECIES };
 
   // ---------- 3D scene (three.js): procedural tree on a plot that is the code; leaves fly into the modules ----------
   const GL = { api:null, ok:false, tried:false, on:false };
+  // Pick a starting quality from the device; the scene then steps itself down further if frames run long.
+  const TIER = (() => {
+    const ua = navigator.userAgent || "", mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (window.matchMedia && matchMedia("(pointer:coarse)").matches);
+    const mem = navigator.deviceMemory || (mobile ? 3 : 8), cores = navigator.hardwareConcurrency || (mobile ? 4 : 8);
+    const lowPower = mobile && (mem <= 3 || cores <= 4), saver = navigator.connection && navigator.connection.saveData;
+    let name = "high";
+    if (lowPower || saver) name = "low"; else if (mobile || mem <= 4 || cores <= 4) name = "medium";
+    const T = { high:{ level:0, perMod:6, tileBlades:4, ring:1.0, tex:2048, aa:true },
+                medium:{ level:1, perMod:4, tileBlades:3, ring:0.8, tex:1536, aa:true },
+                low:{ level:3, perMod:2, tileBlades:2, ring:0.45, tex:1024, aa:false } };
+    return Object.assign({ name }, T[name]);
+  })();
+  let qualityCut = 0;                          // extra reduction if even the lowest in-scene level is too slow
   const MAX_DARK = 3200;                       // above this the leaf count gets too heavy → flat fallback
   function glInit(){
     if (GL.tried) return GL.ok;
@@ -14216,14 +14299,16 @@ root.QRTree = { create, SPECIES };
     try {
       if (!window.THREE || !window.QRTree) throw new Error("no three");
       const c = document.getElementById("glCanvas");
-      const ctx = c.getContext("webgl2", {alpha:true, antialias:true, preserveDrawingBuffer:true}) || c.getContext("webgl", {alpha:true, antialias:true, preserveDrawingBuffer:true});
+      const attrs = { alpha:true, antialias:TIER.aa, preserveDrawingBuffer:true, powerPreference:"high-performance" };
+      const ctx = c.getContext("webgl2", attrs) || c.getContext("webgl", attrs);
       if (!ctx) throw new Error("no webgl");
-      GL.api = QRTree.create(c, ctx, window.__qrtreeOpts);
+      GL.api = QRTree.create(c, ctx, Object.assign({ level:TIER.level, onLevel:(lv)=>{ if (lv >= 4 && !qualityCut){ qualityCut = 1; lastSceneKey = ""; setTimeout(paint, 50); } } }, window.__qrtreeOpts));
       GL.ok = true;
       const wrap = document.getElementById("glWrap");
-      const size = () => { const w = Math.max(200, Math.round(wrap.clientWidth || 600)); c.style.height = Math.round(w*1.1)+"px"; GL.api.resize(w, Math.round(w*1.1), Math.min(3, Math.max(2, window.devicePixelRatio||1))); };
+      const size = () => { const w = Math.max(200, Math.round(wrap.clientWidth || 600)); c.style.height = Math.round(w*1.1)+"px"; GL.api.resize(w, Math.round(w*1.1), Math.min(2, window.devicePixelRatio||1)); };
       GL.size = size;
       if (window.ResizeObserver) new ResizeObserver(()=>{ if (GL.on) size(); }).observe(wrap);
+      if (window.IntersectionObserver) new IntersectionObserver((es)=>{ GL.visible = es[0].isIntersecting; if (!GL.on) return; if (!GL.visible) GL.api.stop(); else if (state.view === "tree" && !TH.busy) GL.api.start(); }).observe(wrap);
       document.addEventListener("visibilitychange", ()=>{ if (document.hidden) GL.api.stop(); else if (GL.on && state.view === "tree") GL.api.start(); });
     } catch(e){ GL.ok = false; }
     return GL.ok;
@@ -14283,7 +14368,7 @@ root.QRTree = { create, SPECIES };
   // The customised code (pattern, eyes, logo, frame, colours) becomes a high-resolution texture inside the 3D scene,
   // so tree <-> sky is one continuous animation: leaves land, then the same picture resolves in place.
   function refreshPlane(){
-    const token = ++planeToken, geom = codeGeom(), k = 2048/Math.max(geom.W, geom.H);
+    const token = ++planeToken, geom = codeGeom(), k = TIER.tex/Math.max(geom.W, geom.H);
     GL.api.setPlaneGeom(geom);
     rasterize(renderCodeSVG(), Math.round(geom.W*k), Math.round(geom.H*k)).then(c => { if (token === planeToken && GL.on) GL.api.setPlaneCanvas(c); }).catch(()=>{});
   }
@@ -14298,7 +14383,8 @@ root.QRTree = { create, SPECIES };
     try {
       glw.hidden = false; glw.style.opacity = 1; wrap.hidden = true; GL.size();
       if (key !== lastSceneKey){
-        GL.api.build({ modules:m.modules, n:m.n, seed:target(), species:state.species, palette:glPalette() });
+        const pm = Math.max(2, qualityCut ? 2 : (dark*TIER.perMod > 9000 ? Math.min(TIER.perMod, 4) : TIER.perMod)), tb = pm >= 6 ? TIER.tileBlades : Math.min(TIER.tileBlades, pm >= 4 ? 3 : 2);
+        GL.api.build({ quality:{ perMod:pm >= 6 ? 6 : pm >= 4 ? 4 : 2, tileBlades:tb, ring:qualityCut ? 0.3 : TIER.ring }, modules:m.modules, n:m.n, seed:target(), species:state.species, palette:glPalette() });
         lastSceneKey = key;
       }
     } catch(e){ GL.ok = false; GL.on = false; lastSceneKey = ""; glw.hidden = true; return false; }
