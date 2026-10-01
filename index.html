@@ -271,21 +271,6 @@
           </div>
         </div>
 
-        <div class="field" id="weatherField">
-          <label>Weather</label>
-          <div class="pattern-grid" id="weatherGrid" style="grid-template-columns:repeat(4,1fr);">
-            <button class="chip-btn" data-weather="auto" aria-pressed="true">Auto</button>
-            <button class="chip-btn" data-weather="clear" aria-pressed="false">Clear</button>
-            <button class="chip-btn" data-weather="cloudy" aria-pressed="false">Cloudy</button>
-            <button class="chip-btn" data-weather="rain" aria-pressed="false">Rain</button>
-            <button class="chip-btn" data-weather="snow" aria-pressed="false">Snow</button>
-            <button class="chip-btn" data-weather="fog" aria-pressed="false">Fog</button>
-            <button class="chip-btn" data-weather="storm" aria-pressed="false">Storm</button>
-            <button class="chip-btn" data-weather="wind" aria-pressed="false">Wind</button>
-          </div>
-          <div class="hint">Weather plays in Tree view and clears away as the code appears, so it never hides the code.</div>
-        </div>
-
         <div class="field" id="patternField">
           <label>Pattern</label>
           <div class="pattern-grid" id="patternGrid">
@@ -13117,26 +13102,6 @@ function create(canvas, ctx, opts){
   const noiseTex = (() => { const c = mk(128,128), x = c.getContext("2d"), id = x.createImageData(128,128); let seed = 11; const r = () => (seed = (seed*16807) % 2147483647)/2147483647;
     for (let i=0;i<128*128;i++){ const v = 236 + Math.floor(r()*20); id.data[4*i]=v; id.data[4*i+1]=v; id.data[4*i+2]=v; id.data[4*i+3]=255; } x.putImageData(id,0,0);
     const t = texFrom(c, true); t.repeat.set(9,9); return t; })();
-  const radial = (size, stops) => { const c = mk(size,size), x = c.getContext("2d"), g = x.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2); stops.forEach(([o,col]) => g.addColorStop(o,col)); x.fillStyle = g; x.fillRect(0,0,size,size); return c; };
-  const flakeTex = texFrom(radial(64, [[0,"rgba(255,255,255,1)"],[0.34,"rgba(255,255,255,1)"],[0.52,"rgba(196,212,230,0.7)"],[1,"rgba(196,212,230,0)"]]));
-  const sunTex   = texFrom(radial(256, [[0,"rgba(255,252,235,1)"],[0.12,"rgba(255,236,190,0.95)"],[0.35,"rgba(255,208,140,0.35)"],[1,"rgba(255,190,110,0)"]]));
-  const rayTex = (() => { const c = mk(256,256), x = c.getContext("2d"); x.translate(128,128);
-    for (let i=0;i<16;i++){ x.rotate(Math.PI*2/16); const g = x.createLinearGradient(0,0,120,0); g.addColorStop(0,"rgba(255,236,190,0.30)"); g.addColorStop(1,"rgba(255,236,190,0)"); x.fillStyle = g; x.beginPath(); x.moveTo(0,-1.5-(i%3)); x.lineTo(125,-9-(i%4)*3); x.lineTo(125,9+(i%4)*3); x.lineTo(0,1.5+(i%3)); x.fill(); }
-    return texFrom(c); })();
-  const cloudTex = (() => { const c = mk(512,256), x = c.getContext("2d"); let seed = 3; const r = () => (seed = (seed*16807) % 2147483647)/2147483647;
-    for (let i=0;i<54;i++){ const px = 80 + r()*352, py = 150 - Math.pow(Math.abs(px-256)/176, 1.6)*22 - r()*52, rad = 22 + r()*40*(1 - Math.abs(px-256)/330), g = x.createRadialGradient(px-rad*0.15,py-rad*0.2,0,px,py,rad);
-      g.addColorStop(0,"rgba(255,255,255,0.97)"); g.addColorStop(0.55,"rgba(250,252,255,0.75)"); g.addColorStop(1,"rgba(244,248,255,0)"); x.fillStyle = g; x.beginPath(); x.arc(px,py,rad,0,6.3); x.fill(); }
-    x.globalCompositeOperation = "source-atop"; const g2 = x.createLinearGradient(0,90,0,170); g2.addColorStop(0,"rgba(150,168,192,0)"); g2.addColorStop(1,"rgba(132,150,176,0.55)"); x.fillStyle = g2; x.fillRect(0,0,512,256);
-    return texFrom(c); })();
-  const fogTex = (() => { const c = mk(256,256), x = c.getContext("2d"); let seed = 9; const r = () => (seed = (seed*16807) % 2147483647)/2147483647;
-    for (let i=0;i<70;i++){ const px = 30 + r()*196, py = 30 + r()*196, rad = 26 + r()*50, g = x.createRadialGradient(px,py,0,px,py,rad);
-      g.addColorStop(0,"rgba(255,255,255,0.20)"); g.addColorStop(1,"rgba(255,255,255,0)"); x.fillStyle = g; x.beginPath(); x.arc(px,py,rad,0,6.3); x.fill(); }
-    return texFrom(c); })();
-  const boltTex = (() => { const c = mk(128,512), x = c.getContext("2d"); let seed = 21; const r = () => (seed = (seed*16807) % 2147483647)/2147483647;
-    x.lineJoin = "round"; x.lineCap = "round"; x.shadowColor = "rgba(180,208,255,1)"; x.shadowBlur = 16;
-    const path = (px,py,len,w) => { x.lineWidth = w; x.strokeStyle = "#ffffff"; x.beginPath(); x.moveTo(px,py); let cx = px, cy = py; const steps = Math.floor(len/26);
-      for (let i=0;i<steps;i++){ cx += (r()-0.5)*34; cy += 26; x.lineTo(Math.max(14,Math.min(114,cx)), cy); } x.stroke(); return [cx,cy]; };
-    path(64,0,500,3.4); const b1 = path(64,150,200,1.8), b2 = path(64,300,150,1.5); return texFrom(c); })();
   const shadowTex = (() => { const c = mk(256,256), x = c.getContext("2d"), g = x.createRadialGradient(128,128,8,128,128,126);
     g.addColorStop(0,"rgba(0,0,0,0.55)"); g.addColorStop(0.55,"rgba(0,0,0,0.22)"); g.addColorStop(1,"rgba(0,0,0,0)"); x.fillStyle = g; x.fillRect(0,0,256,256);
     return texFrom(c); })();
@@ -13151,15 +13116,11 @@ function create(canvas, ctx, opts){
   scene.add(hemi, key, key.target);
 
   const leafGeo = leafGeometry();
-  const wx = { rain:0, snow:0, fog:0, cloud:0, sun:1, wind:0.25, storm:0, fade:1 };
-  let rain = null, snow = null, fogPl = [], clouds = [], sunSpr = null, raySpr = null, flashSpr = null, boltSpr = null, rimMesh = null, rimBase = new T.Color(), wxD = null, flash = 0, nextFlash = 2, lastT = 0, strikeQ = [], boltX = 0.5;
-  const NR = 1700, NS = 2100;
-  const _cq = new T.Quaternion(), _zq = new T.Quaternion(), _ax = new T.Vector3(0,0,1), _R = new T.Vector3(), _U = new T.Vector3(), _F = new T.Vector3();
   const st = { planeGeom:null, planeTex:null, morph:0, time:0, ready:false, L:0, D:0, n:0, P:0, H:0, R:0, running:false, raf:0, anim:null, swayEvery:1, frameNo:0, W:1, Hpx:1 };
-  let planeMesh = null, shadowMesh = null, group = null, leaves = null, tiles = null, skeleton = null, fall = null, fallData = null, blades = null, bd = null, tileTone = null, tileRest = new T.Color();
+  let skelGroup = null, litter = null, ld = null, planeMesh = null, shadowMesh = null, group = null, leaves = null, tiles = null, skeleton = null, fall = null, fallData = null, blades = null, bd = null, tileTone = null, tileRest = new T.Color();
   let d = {};                                   // per-leaf typed arrays
   const qrCol = new T.Color(), tmpC = new T.Color();
-  const _dark = new T.Color(0.32,0.35,0.42), _grey = new T.Color(0.62,0.66,0.72), _snow = new T.Color(0.95,0.97,1), _white = new T.Color(1,1,1), _m = new T.Matrix4(), _q = new T.Quaternion(), _e = new T.Euler(0,0,0,"YXZ"), _p = new T.Vector3(), _s = new T.Vector3();
+  const _white = new T.Color(1,1,1), _m = new T.Matrix4(), _q = new T.Quaternion(), _e = new T.Euler(0,0,0,"YXZ"), _p = new T.Vector3(), _s = new T.Vector3();
 
   function disposeGroup(){
     if (!group) return;
@@ -13177,6 +13138,9 @@ function create(canvas, ctx, opts){
     const D = dark.length/2, L = D*6, P = n + 8, H = P*0.66;
     Object.assign(st, { n, D, L, P, H, ready:true });
     qrCol.set(pal.qr);
+    const dens = pal.density == null ? 1 : pal.density, rndV = mulberry32(hashStr("vis|" + cfg.seed)), hk = pal.grassK || 1;
+    const lt = pal.sun || { color:"#fff0d4", k:1 };
+    key.color.set(lt.color); st.keyK = lt.k; st.hemiSky = new T.Color(pal.hemiSky || "#dcebff");
     group = new T.Group(); scene.add(group);
 
     // plot: grass rim outside the quiet zone, light field, dark tiles sitting slightly proud
@@ -13196,12 +13160,20 @@ function create(canvas, ctx, opts){
     const grown = spec.kind === "conifer" ? growConifer(spec, rnd, H) : growBroad(spec, rnd, H);
     skeleton = new T.Mesh(branchGeometry(grown.segs, 6), new T.MeshLambertMaterial({ color:pal.bark, map:barkTex, side:T.DoubleSide }));
     skeleton.frustumCulled = false; skeleton.castShadow = true; skeleton.receiveShadow = true;
-    group.add(skeleton);
+    skelGroup = new T.Group(); skelGroup.add(skeleton); group.add(skelGroup);
+    if (pal.snow > 0){                                         // frosted bark with snow lying along the branches
+      skeleton.material.color.lerp(new T.Color("#dfe7ee"), 0.4*pal.snow);
+      const cand = grown.segs.filter(sg => Math.abs(sg.b.y - sg.a.y) < 0.8*sg.a.distanceTo(sg.b)), NC = Math.min(cand.length, 520);
+      const caps = new T.InstancedMesh(new T.SphereGeometry(1,10,6), new T.MeshLambertMaterial({ color:0xf6f9fc }), NC); caps.frustumCulled = false;
+      for (let i=0;i<NC;i++){ const sg = cand[Math.floor(rnd()*cand.length)], tt = 0.2 + rnd()*0.75, r = sg.r0 + (sg.r1 - sg.r0)*tt;
+        _p.set(lerp(sg.a.x,sg.b.x,tt), lerp(sg.a.y,sg.b.y,tt) + r*0.85, lerp(sg.a.z,sg.b.z,tt)); _q.identity(); _s.set(r*2.5 + 0.28, r*0.9 + 0.12, r*2.5 + 0.28); _m.compose(_p,_q,_s); caps.setMatrixAt(i,_m); }
+      skelGroup.add(caps);
+    }
     let maxR = 0; for (const t of grown.tips) maxR = Math.max(maxR, Math.hypot(t.x,t.z));
     st.R = maxR + H*spec.leaf*1.1;
 
     // leaves: rest position on the tree, target position inside the module they belong to
-    d = { sn:new Float32Array(L), tc:new Float32Array(L*3), rp:new Float32Array(L*3), tp:new Float32Array(L*3), rr:new Float32Array(L*3), s0:new Float32Array(L), dl:new Float32Array(L), ph:new Float32Array(L), arc:new Float32Array(L), rc:new Float32Array(L*3), tw:new Float32Array(L) };
+    d = { vis:new Float32Array(L), tc:new Float32Array(L*3), rp:new Float32Array(L*3), tp:new Float32Array(L*3), rr:new Float32Array(L*3), s0:new Float32Array(L), dl:new Float32Array(L), ph:new Float32Array(L), arc:new Float32Array(L), rc:new Float32Array(L*3), tw:new Float32Array(L) };
     const cols = pal.leaves.map(c => new T.Color(c)), acc = new T.Color(pal.accent);
     const T0 = grown.tips.length, spread = H*spec.leaf;
     for (let i=0;i<L;i++){
@@ -13213,12 +13185,12 @@ function create(canvas, ctx, opts){
       const px = tip.x+ox, py = Math.max(0.6, tip.y+oy), pz = tip.z+oz;
       d.rp[3*i]=px; d.rp[3*i+1]=py; d.rp[3*i+2]=pz;
       d.rr[3*i]=(rnd()-0.5)*1.7; d.rr[3*i+1]=(rnd()*2-1)*Math.PI; d.rr[3*i+2]=(rnd()-0.5)*1.7;
-      d.s0[i] = 1.7 + rnd()*1.1;
-      d.sn[i] = clamp01(0.15 + 0.85*(py/H))*(0.45 + 0.55*rnd());
+      d.s0[i] = (1.7 + rnd()*1.1)*(dens < 0.5 ? 0.82 : 1);
+      d.vis[i] = rndV() < dens ? 1 : 0;
       d.dl[i] = rnd()*DELAY_MAX; d.ph[i] = rnd()*6.283; d.arc[i] = 2 + rnd()*5; d.tw[i] = (rnd()<0.5?-1:1)*(1+rnd()*2);
       // colour: palette pick, lit from above/outside, darker deep inside
       const base = tmpC.copy(cols[Math.floor(rnd()*cols.length)]);
-      if (pal.accent && rnd() < (cfg.blossom ? 0.2 : 0)) base.copy(acc);
+      if (pal.accent && rnd() < (pal.blossomRate || 0)) base.copy(acc);
       const lit = 0.72 + 0.4*clamp01(py/H) + 0.18*clamp01(Math.hypot(px,pz)/st.R) + (rnd()-0.5)*0.14;
       d.rc[3*i]=Math.min(1,base.r*lit); d.rc[3*i+1]=Math.min(1,base.g*lit); d.rc[3*i+2]=Math.min(1,base.b*lit);
       const m = Math.floor(i/6), k = i%6;
@@ -13235,7 +13207,7 @@ function create(canvas, ctx, opts){
     group.add(leaves);
 
     // grass: tufts standing on every dark module, plus a meadow around the plot
-    const gc = new T.Color(pal.ground), nT = D*4, half = P/2 + 1.55, ring = [];
+    const gc = new T.Color(pal.grass || pal.ground), nT = D*4, half = P/2 + 1.55, ring = [];
     const nR = Math.min(5200, Math.round(((2*half)*(2*half) - P*P)*8));
     const NB = nT + nR;
     bd = { x:new Float32Array(NB), y:new Float32Array(NB), z:new Float32Array(NB), r:new Float32Array(NB), h:new Float32Array(NB), l:new Float32Array(NB), ph:new Float32Array(NB), tile:new Uint8Array(NB), nT, NB };
@@ -13243,39 +13215,35 @@ function create(canvas, ctx, opts){
     blades.frustumCulled = false; blades.setColorAt(0, gc);
     for (let i=0;i<NB;i++){
       let x, z, y, h, shade;
-      if (i < nT){ const mI = Math.floor(i/4); x = dark[2*mI+1]-n/2+0.5 + (rndB()-0.5)*0.9; z = dark[2*mI]-n/2+0.5 + (rndB()-0.5)*0.9; y = 0.14; h = 0.7 + rndB()*0.7; shade = 0.55 + rndB()*0.5; bd.tile[i] = 1; }
-      else { do { x = (rndB()*2-1)*half; z = (rndB()*2-1)*half; } while (Math.abs(x) < P/2 + 0.05 && Math.abs(z) < P/2 + 0.05); y = -0.15; h = 1.2 + rndB()*1.6; shade = 0.6 + rndB()*0.7; }
+      if (i < nT){ const mI = Math.floor(i/4); x = dark[2*mI+1]-n/2+0.5 + (rndB()-0.5)*0.9; z = dark[2*mI]-n/2+0.5 + (rndB()-0.5)*0.9; y = 0.14; h = (0.7 + rndB()*0.7)*hk; shade = 0.55 + rndB()*0.5; bd.tile[i] = 1; }
+      else { do { x = (rndB()*2-1)*half; z = (rndB()*2-1)*half; } while (Math.abs(x) < P/2 + 0.05 && Math.abs(z) < P/2 + 0.05); y = -0.15; h = (1.2 + rndB()*1.6)*hk; shade = 0.6 + rndB()*0.7; }
       bd.x[i]=x; bd.y[i]=y; bd.z[i]=z; bd.h[i]=h; bd.r[i]=rndB()*6.283; bd.l[i]=(rndB()-0.5)*0.5; bd.ph[i]=rndB()*6.283;
       tmpC.copy(gc).multiplyScalar(shade); tmpC.g = Math.min(1, tmpC.g*1.05);
       blades.setColorAt(i, tmpC);
     }
     group.add(blades);
+    const LN = pal.litter ? pal.litter.n : 0;
+    if (LN > 0){
+      litter = new T.InstancedMesh(leafGeo, new T.MeshBasicMaterial({ map:leafTex, side:T.DoubleSide }), LN); litter.frustumCulled = false;
+      ld = { x:new Float32Array(LN), z:new Float32Array(LN), r:new Float32Array(LN), s:new Float32Array(LN), N:LN };
+      const lcs = pal.litter.colors.map(c => new T.Color(c));
+      for (let i=0;i<LN;i++){ let x, z; do { x = (rndB()*2-1)*half; z = (rndB()*2-1)*half; } while (Math.abs(x) < P/2 + 0.1 && Math.abs(z) < P/2 + 0.1);
+        ld.x[i]=x; ld.z[i]=z; ld.r[i]=rndB()*6.283; ld.s[i]=0.8 + rndB()*0.8;
+        tmpC.copy(lcs[Math.floor(rndB()*lcs.length)]).multiplyScalar(0.78 + rndB()*0.4); litter.setColorAt(i, tmpC); }
+      group.add(litter);
+    } else { litter = null; ld = null; }
 
     // a few falling leaves that only ever land outside the plot
-    const F = 26; fallData = { x:new Float32Array(F), z:new Float32Array(F), t0:new Float32Array(F), sp:new Float32Array(F), c:[] };
+    const FN = pal.fallN || 0, F = Math.max(1, FN); st.FN = FN; fallData = { x:new Float32Array(F), z:new Float32Array(F), t0:new Float32Array(F), sp:new Float32Array(F), c:[] };
     fall = new T.InstancedMesh(leafGeo, new T.MeshBasicMaterial({ map:leafTex, side:T.DoubleSide }), F); fall.frustumCulled = false;
     for (let i=0;i<F;i++){
       const a = rnd()*6.283, r = P*0.5 + 2.5 + rnd()*P*0.32;
       const sq = Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
       fallData.x[i] = Math.cos(a)*r/sq*0.5 + Math.sign(Math.cos(a))*0; fallData.z[i] = Math.sin(a)*r/sq*0.5;
       fallData.t0[i] = rnd()*9; fallData.sp[i] = 2.2 + rnd()*2.2;
-      fall.setColorAt(i, cols[i%cols.length]);
+      { const fc = pal.fallColors || pal.leaves; fall.setColorAt(i, new T.Color(fc[i % fc.length])); }
     }
-    group.add(fall);
-
-    // weather: rain streaks, snow flakes, ground fog, drifting clouds, sun glare + rays, lightning
-    rimMesh = rim; rimBase.set(pal.ground);
-    const V = P*0.85, YM = H*1.55; wxD = { V, YM, rx:new Float32Array(NR), rz:new Float32Array(NR), ro:new Float32Array(NR), rs:new Float32Array(NR), sx:new Float32Array(NS), sz:new Float32Array(NS), so:new Float32Array(NS), ss:new Float32Array(NS), sp:new Float32Array(NS), sz2:new Float32Array(NS) };
-    for (let i=0;i<NR;i++){ wxD.rx[i]=(rndB()*2-1)*V; wxD.rz[i]=(rndB()*2-1)*V; wxD.ro[i]=rndB()*YM; wxD.rs[i]=22+rndB()*10; }
-    for (let i=0;i<NS;i++){ wxD.sx[i]=(rndB()*2-1)*V; wxD.sz[i]=(rndB()*2-1)*V; wxD.so[i]=rndB()*YM; wxD.ss[i]=1.5+rndB()*1.6; wxD.sp[i]=rndB()*6.283; wxD.sz2[i]=0.2+rndB()*0.34; }
-    rain = new T.InstancedMesh(new T.PlaneGeometry(0.07,1.9).translate(0,-0.95,0), new T.MeshBasicMaterial({ color:0xd8e8f6, transparent:true, opacity:0.5, depthWrite:false, side:T.DoubleSide }), NR);
-    snow = new T.InstancedMesh(new T.PlaneGeometry(1,1), new T.MeshBasicMaterial({ map:flakeTex, transparent:true, depthWrite:false, side:T.DoubleSide }), NS);
-    for (const o of [rain, snow]){ o.frustumCulled = false; o.visible = false; o.renderOrder = 8; group.add(o); }
-    fogPl = [0.8, 1.9, 3.2, 4.6].map((y,i) => { const m = new T.Mesh(new T.PlaneGeometry(1,1).rotateX(-Math.PI/2), new T.MeshBasicMaterial({ map:fogTex, transparent:true, depthWrite:false, opacity:0 })); m.position.y = y; m.scale.set(P*2.6, 1, P*2.6); m.visible = false; m.renderOrder = 7; m.rotation.y = i*1.3; group.add(m); return m; });
-    const spr = (map, add, order) => { const m = new T.Sprite(new T.SpriteMaterial({ map, transparent:true, depthWrite:false, depthTest:order !== 10, blending: add ? T.AdditiveBlending : T.NormalBlending, opacity:0 })); m.visible = false; m.renderOrder = order; m.frustumCulled = false; group.add(m); return m; };
-    clouds = []; for (let i=0;i<7;i++){ const c = spr(cloudTex, false, -5); c.userData = { fx:rndB(), fy:0.6 + rndB()*0.34, sc:0.34 + rndB()*0.3, sp:0.5 + rndB()*0.8 }; clouds.push(c); }
-    sunSpr = spr(sunTex, true, -4); raySpr = spr(rayTex, true, -4); boltSpr = spr(boltTex, true, 9); flashSpr = spr(flakeTex, true, 10);
-    flash = 0; nextFlash = 1.5; strikeQ = [];
+    fall.count = FN; fall.visible = FN > 0; group.add(fall);
 
     // the finished, fully customised code lives in the scene too, so the view change never swaps to another layer
     planeMesh = new T.Mesh(new T.PlaneGeometry(1,1).rotateX(-Math.PI/2), new T.MeshBasicMaterial({ transparent:true, opacity:0, depthWrite:false }));
@@ -13288,58 +13256,7 @@ function create(canvas, ctx, opts){
     render();
   }
 
-  function setWeather(w){ Object.assign(wx, w); st._lastSnow = -1; if (st.ready){ update(st.morph); render(); } }
-  function setTransition(m, wf){ if (wf !== undefined) wx.fade = wf; st.morph = clamp01(m); if (st.ready){ update(st.morph); fit(); render(); } }
-
-  function weatherStep(m, t, dt){
-    const F = wx.fade*(1 - smooth(clamp01(m*4)));              // weather clears completely before the code resolves
-    const rainE = wx.rain*F, snowE = wx.snow*F, fogE = wx.fog*F, cloudE = wx.cloud*F, stormE = wx.storm*F;
-    const sunE = lerp(0.95, wx.sun*(1 - 0.85*wx.cloud) + 0.05, F)*(1 - smooth(clamp01(m*3)));
-    const windE = lerp(0.25, wx.wind, F), V = wxD.V, YM = wxD.YM;
-    camera.matrixWorld.extractBasis(_R, _U, _F);
-    _cq.copy(camera.quaternion);
-    // rain
-    const nr = Math.floor(NR*rainE); rain.visible = nr > 0; rain.count = nr;
-    if (nr){ const slant = 0.10 + 0.34*windE; _zq.setFromAxisAngle(_ax, -slant); _q.copy(_cq).multiply(_zq); _s.set(1,1,1);
-      for (let i=0;i<nr;i++){ const y = YM - ((t*wxD.rs[i] + wxD.ro[i]) % YM), k = (YM - y)*Math.tan(slant)*0.55;
-        let x = wxD.rx[i] + k*_R.x, z = wxD.rz[i] + k*_R.z; x = ((x + V) % (2*V) + 2*V) % (2*V) - V; z = ((z + V) % (2*V) + 2*V) % (2*V) - V;
-        _p.set(x, y, z); _m.compose(_p,_q,_s); rain.setMatrixAt(i,_m); }
-      rain.instanceMatrix.needsUpdate = true; rain.material.opacity = 0.42 + 0.2*stormE; }
-    // snow
-    const ns = Math.floor(NS*snowE); snow.visible = ns > 0; snow.count = ns;
-    if (ns){ for (let i=0;i<ns;i++){ const y = YM - ((t*wxD.ss[i] + wxD.so[i]) % YM), a = t*0.7 + wxD.sp[i];
-        const x = wxD.sx[i] + Math.sin(a)*1.3 + t*windE*1.4 % (2*V), z = wxD.sz[i] + Math.cos(a*0.8)*1.2;
-        _p.set(((x + V) % (2*V) + 2*V) % (2*V) - V, y, z); _s.setScalar(wxD.sz2[i]*1.25); _m.compose(_p,_cq,_s); snow.setMatrixAt(i,_m); }
-      snow.instanceMatrix.needsUpdate = true; }
-    // ground fog
-    fogPl.forEach((f,i) => { f.visible = fogE > 0.01; f.material.opacity = fogE*(0.24 - i*0.04); f.rotation.y = i*1.3 + t*0.012*(1 + windE)*(i%2 ? 1 : -1); f.position.x = Math.sin(t*0.05 + i)*3; });
-    // clouds, sun, lightning are placed in view space, far behind the scene
-    const cx = (camera.left + camera.right)/2, vw = camera.right - camera.left, vh = camera.top - camera.bottom;
-    const place = (o, fx, fy, dist) => { o.position.copy(camera.position).addScaledVector(_F, -dist).addScaledVector(_R, camera.left + fx*vw).addScaledVector(_U, camera.bottom + fy*vh); };
-    clouds.forEach((c,i) => { const u = c.userData, fx = ((u.fx + t*0.012*u.sp*(0.4 + windE)) % 1.5) - 0.25; place(c, fx, u.fy, 540); c.scale.set(vw*u.sc*1.7, vw*u.sc*0.85, 1);
-      c.visible = cloudE > 0.15; c.material.opacity = Math.min(0.92, Math.max(0, cloudE - 0.1)*1.05); c.material.color.setRGB(1,1,1).lerp(_dark, stormE*0.6); });
-    sunSpr.visible = raySpr.visible = sunE > 0.02;
-    if (sunE > 0.02){ place(sunSpr, 0.16, 0.9, 520); sunSpr.scale.set(vw*0.62, vw*0.62, 1); sunSpr.material.opacity = Math.min(1, sunE);
-      place(raySpr, 0.16, 0.9, 530); raySpr.scale.set(vw*1.25, vw*1.25, 1); raySpr.material.rotation = t*0.03; raySpr.material.opacity = 0.9*sunE; }
-    // lightning: a couple of quick strikes every few seconds while it storms
-    if (stormE > 0.4){ nextFlash -= dt; if (nextFlash <= 0){ nextFlash = 2.5 + Math.random()*5; strikeQ = [0, 0.14 + Math.random()*0.1]; boltX = 0.2 + Math.random()*0.6; flash = 1; } }
-    if (strikeQ.length){ strikeQ = strikeQ.map(x => x - dt); if (strikeQ[0] <= 0 && !st._s0){ st._s0 = true; } }
-    const sq = strikeQ.length ? strikeQ[strikeQ.length-1] : 1; if (strikeQ.length && sq <= 0){ flash = 1; strikeQ = []; }
-    flash = Math.max(0, flash - dt*5.5);
-    const fl = stormE > 0.2 ? flash : 0;
-    flashSpr.visible = fl > 0.01; boltSpr.visible = fl > 0.25;
-    if (flashSpr.visible){ place(flashSpr, 0.5, 0.5, 40); flashSpr.scale.set(vw*3, vh*3, 1); flashSpr.material.opacity = fl*0.5; }
-    if (boltSpr.visible){ place(boltSpr, boltX, 0.55, 500); boltSpr.scale.set(vw*0.16, vh*0.9, 1); boltSpr.material.opacity = Math.min(1, fl*1.3); }
-    // lighting follows the weather: overcast softens the sun, storms darken the sky, lightning flashes
-    const flat = smooth(clamp01((m - 0.5)/0.4)), sunK = lerp(1, wx.sun*(1 - 0.8*wx.cloud) + 0.18, F);
-    key.intensity = lerp(0.82*Math.PI*sunK + fl*3*Math.PI, 0, flat);
-    hemi.intensity = lerp((0.64 + 0.2*cloudE)*Math.PI + fl*1.2*Math.PI, Math.PI, flat);
-    hemi.color.set(0xdcebff).lerp(_grey, clamp01(cloudE*0.7 + stormE*0.3)).lerp(_white, flat);
-    // wet leaves darken, snow settles on leaves and the ground
-    leaves.material.color.setScalar(1 - 0.2*rainE); rimMesh.material.color.copy(rimBase).multiplyScalar(1 - 0.2*rainE).lerp(_snow, snowE*0.85);
-    if (Math.abs(snowE - (st._lastSnow || 0)) > 0.01){ st._lastSnow = snowE; st._colorDirty = true; }
-    return { windE, F };
-  }
+  function setTransition(m){ st.morph = clamp01(m); if (st.ready){ update(st.morph); fit(); render(); } }
 
   function applyPlane(){
     if (!planeMesh) return;
@@ -13352,10 +13269,8 @@ function create(canvas, ctx, opts){
 
   function update(m, force){
     if (!st.ready) return;
-    const L = st.L, H = st.H, now = performance.now()/1000, dt = Math.min(0.1, Math.max(0, now - (lastT || now))); lastT = now; st.time = now; const t = now;
-    const wxo = weatherStep(m, t, dt), windE = wxo.windE;
-    const colorsChanged = force || m !== st._lastM || st._colorDirty; st._colorDirty = false;
-    const snowK = clamp01((st._lastSnow || 0));
+    const L = st.L, t = st.time, H = st.H;
+    const colorsChanged = force || m !== st._lastM;
     st._lastM = m;
     const mArr = leaves.instanceMatrix.array, cArr = leaves.instanceColor.array;
     const sw = m < 0.02 ? 1 : 0;                                   // sway only while resting
@@ -13366,16 +13281,16 @@ function create(canvas, ctx, opts){
       let px = lerp(x0, d.tp[3*i], u), py = lerp(y0, d.tp[3*i+1], u) + Math.sin(Math.PI*u)*d.arc[i], pz = lerp(z0, d.tp[3*i+2], u);
       let rz = d.rr[3*i+2]*(1-u), ry = d.rr[3*i+1]*(1-u) + Math.sin(Math.PI*u)*d.tw[i], rx = d.rr[3*i]*(1-u);
       if (u < 1){
-        const amp = Math.pow(clamp01(y0/H), 1.3)*0.55*(0.55 + 1.7*windE)*(1-u);
+        const amp = Math.pow(clamp01(y0/H), 1.3)*0.55*(1-u);
         px += Math.sin(t*1.25 + d.ph[i])*amp; pz += Math.cos(t*0.95 + d.ph[i]*1.3)*amp*0.6;
         rz += Math.sin(t*2.1 + d.ph[i])*0.22*(1-u); rx += Math.cos(t*1.7 + d.ph[i])*0.14*(1-u);
       }
       const s0 = d.s0[i];
-      _p.set(px,py,pz); _q.setFromEuler(_e.set(rx,ry,rz,"YXZ")); _s.set(lerp(s0, tsx, u), 1, lerp(s0, tsz, u));
+      _p.set(px,py,pz); _q.setFromEuler(_e.set(rx,ry,rz,"YXZ")); { const s1 = s0*d.vis[i]; _s.set(lerp(s1, tsx, u), 1, lerp(s1, tsz, u)); }
       _m.compose(_p,_q,_s).toArray(mArr, 16*i);
       if (colorsChanged){
-        const k = smooth(clamp01((u-0.15)/0.85)), sw = snowK*d.sn[i]*0.75*(1-k);
-        cArr[3*i] = lerp(lerp(d.rc[3*i], 0.95, sw), d.tc[3*i], k); cArr[3*i+1] = lerp(lerp(d.rc[3*i+1], 0.97, sw), d.tc[3*i+1], k); cArr[3*i+2] = lerp(lerp(d.rc[3*i+2], 1, sw), d.tc[3*i+2], k);
+        const k = smooth(clamp01((u-0.15)/0.85));
+        cArr[3*i] = lerp(d.rc[3*i], d.tc[3*i], k); cArr[3*i+1] = lerp(d.rc[3*i+1], d.tc[3*i+1], k); cArr[3*i+2] = lerp(d.rc[3*i+2], d.tc[3*i+2], k);
       }
     }
     leaves.instanceMatrix.needsUpdate = true;
@@ -13387,11 +13302,14 @@ function create(canvas, ctx, opts){
       for (let i=0;i<st.D;i++){ ta[3*i] = lerp(tileRest.r, tileTone[3*i], tk); ta[3*i+1] = lerp(tileRest.g, tileTone[3*i+1], tk); ta[3*i+2] = lerp(tileRest.b, tileTone[3*i+2], tk); }
       tiles.instanceColor.needsUpdate = true;
     }
+    if (litter){ const gl = 1 - smooth(clamp01(m*1.4)); const la = litter.instanceMatrix.array;
+      for (let i=0;i<ld.N;i++){ _p.set(ld.x[i], -0.13, ld.z[i]); _q.setFromEuler(_e.set(0, ld.r[i], 0, "YXZ")); const sc = Math.max(0.00001, ld.s[i]*gl); _s.set(sc, 1, sc); _m.compose(_p,_q,_s).toArray(la, 16*i); }
+      litter.instanceMatrix.needsUpdate = true; }
     // grass on the modules withdraws; the meadow around the plot stays (shorter from above)
     { const gT = 1 - smooth(clamp01(m*1.4)), gR = 1 - smooth(clamp01(m*1.4)), bArr = blades.instanceMatrix.array;
       for (let i=0;i<bd.NB;i++){
         const hs = bd.h[i]*(bd.tile[i] ? gT : gR);
-        _p.set(bd.x[i], bd.y[i], bd.z[i]); _q.setFromEuler(_e.set(bd.l[i], bd.r[i], Math.sin(t*(1.4 + windE*1.6) + bd.ph[i])*(0.07 + 0.2*windE) + bd.l[i]*0.5, "YXZ")); { const sc = hs < 0.02 ? 0.00001 : hs; _s.set(hs < 0.02 ? 0.00001 : 1.7, sc, Math.min(1, sc)); }
+        _p.set(bd.x[i], bd.y[i], bd.z[i]); _q.setFromEuler(_e.set(bd.l[i], bd.r[i], Math.sin(t*1.6 + bd.ph[i])*0.14 + bd.l[i]*0.5, "YXZ")); { const sc = hs < 0.02 ? 0.00001 : hs; _s.set(hs < 0.02 ? 0.00001 : 1.7, sc, Math.min(1, sc)); }
         _m.compose(_p,_q,_s).toArray(bArr, 16*i);
       }
       blades.instanceMatrix.needsUpdate = true; }
@@ -13399,14 +13317,16 @@ function create(canvas, ctx, opts){
     const po = smooth(clamp01((m - 0.8)/0.2));
     planeMesh.material.opacity = po; planeMesh.visible = po > 0.002 && !!st.planeTex && !!st.planeGeom;
     // sun + sky: real directional light with shadows while it is a tree; ramps to flat, even light as it becomes a code
-    { const flat = smooth(clamp01((m - 0.5)/0.4)); hemi.groundColor.set(0x7d8a5a).lerp(_white, flat); }
+    { const flat = smooth(clamp01((m - 0.5)/0.4)), kk = st.keyK == null ? 1 : st.keyK;
+      key.intensity = lerp(0.82*Math.PI*kk, 0, flat); hemi.intensity = lerp((0.64 + (1 - kk)*0.35)*Math.PI, Math.PI, flat);
+      hemi.color.copy(st.hemiSky || _white).lerp(_white, flat); hemi.groundColor.set(0x7d8a5a).lerp(_white, flat); }
     const sk = 1 - smooth(clamp01(m*2));                           // woody skeleton withdraws into the plot
-    skeleton.visible = sk > 0.002; skeleton.scale.setScalar(Math.max(sk, 0.0001));
+    skelGroup.visible = sk > 0.002; skelGroup.scale.setScalar(Math.max(sk, 0.0001));
     // falling leaves (hidden as soon as the code starts to resolve)
-    fall.visible = m < 0.02;
+    fall.visible = st.FN > 0 && m < 0.02;
     if (fall.visible){
-      for (let i=0;i<fallData.x.length;i++){
-        const ph = ((t*(0.6 + windE*1.4) + fallData.t0[i]) % 9)/9, y = lerp(H*0.75, 0.3, ph);
+      for (let i=0;i<st.FN;i++){
+        const ph = ((t + fallData.t0[i]) % 9)/9, y = lerp(H*0.75, 0.3, ph);
         _p.set(fallData.x[i] + Math.sin(t*0.9 + i)*1.4, y, fallData.z[i] + Math.cos(t*0.7 + i*2)*1.2);
         _q.setFromEuler(_e.set(Math.sin(t*1.8+i)*0.9, t*fallData.sp[i]*0.4, Math.cos(t*1.4+i)*0.9,"YXZ"));
         _s.set(1.1,1,1.1); _m.compose(_p,_q,_s); fall.setMatrixAt(i,_m);
@@ -13453,7 +13373,7 @@ function create(canvas, ctx, opts){
   function stop(){ st.running = false; if (st.raf) cancelAnimationFrame(st.raf); st.raf = 0; }
   function animateTo(to, ms, done){ st.anim = { from:st.morph, to, ms, t0:performance.now(), done }; start(); }
 
-  return { build, setWeather, setTransition, setPlaneGeom, setPlaneCanvas, setMorph, animateTo, resize, start, stop, render, st, canvas:renderer.domElement, isReady:()=>st.ready, dispose(){ stop(); disposeGroup(); renderer.dispose(); } };
+  return { build, setTransition, setPlaneGeom, setPlaneCanvas, setMorph, animateTo, resize, start, stop, render, st, canvas:renderer.domElement, isReady:()=>st.ready, dispose(){ stop(); disposeGroup(); renderer.dispose(); } };
 }
 root.QRTree = { create, SPECIES };
 })(typeof window !== "undefined" ? window : globalThis);
@@ -13463,12 +13383,313 @@ root.QRTree = { create, SPECIES };
 (function(){
 
   const SEASONS = {
-    spring: { label:"Spring", swatch:"#8FBF6F", sky:["#F2F7E9","#E7F1DC"], ground:"#7BA35B", pot:"#9C6B41", potShade:"#7E5432", leaves:["#6FA65A","#8FBF6F","#B7D98F"], accent:"#F0A8C4", ink:"#243418", decor:"blossom", fall:"petal" },
-    summer: { label:"Summer", swatch:"#2F8F52", sky:["#EAF6EE","#DCEFDF"], ground:"#3F7A3F", pot:"#8A5A34", potShade:"#6E4527", leaves:["#1F7A42","#2F8F52","#4FAA63"], accent:"#F4C042", ink:"#1B2F1C", decor:"sun", fall:"sparkle" },
-    autumn: { label:"Autumn", swatch:"#C1622B", sky:["#FBEEDF","#F6E1CC"], ground:"#8C5A2E", pot:"#7A4A28", potShade:"#5E3A1E", leaves:["#9C4A20","#C1622B","#E0913E"], accent:"#E0913E", ink:"#3A2313", decor:"leaves", fall:"leaf" },
-    winter: { label:"Winter", swatch:"#5F8CA6", sky:["#EDF3F6","#DEE9EF"], ground:"#6E7E86", pot:"#5B4A3C", potShade:"#463A2F", leaves:["#3E6E86","#5F8CA6","#9FC2D2"], accent:"#FFFFFF", ink:"#26343B", decor:"snow", fall:"snow" }
-  };
-  const FALL_GLYPH = { petal:"🌸", sparkle:"✦", leaf:"🍂", snow:"❄" };
+  "spring": {
+    "label": "Spring",
+    "swatch": "#8FBF6F",
+    "sky": [
+      "#F2F7E9",
+      "#E7F1DC"
+    ],
+    "ground": "#7BA35B",
+    "pot": "#9C6B41",
+    "potShade": "#7E5432",
+    "leaves": [
+      "#7DB05A",
+      "#9BC76F",
+      "#B9DB8E",
+      "#6FA65A"
+    ],
+    "accent": "#FFFFFF",
+    "ink": "#243418",
+    "decor": "blossom",
+    "fall": "petal",
+    "density": 0.86,
+    "blossomRate": 0.16,
+    "grass": "#7FB35A",
+    "grassK": 1.0,
+    "litter": {
+      "n": 70,
+      "colors": [
+        "#F4B6CB",
+        "#FBE3EC"
+      ]
+    },
+    "fallN": 12,
+    "fallColors": [
+      "#F4B6CB",
+      "#FBE3EC"
+    ],
+    "light": {
+      "color": "#fff4dc",
+      "k": 1.0
+    },
+    "hemiSky": "#e2efff"
+  },
+  "summer": {
+    "label": "Summer",
+    "swatch": "#2F8F52",
+    "sky": [
+      "#EAF6EE",
+      "#DCEFDF"
+    ],
+    "ground": "#3F7A3F",
+    "pot": "#8A5A34",
+    "potShade": "#6E4527",
+    "leaves": [
+      "#1F7A42",
+      "#2F8F52",
+      "#4FAA63",
+      "#256B38"
+    ],
+    "accent": "#F4C042",
+    "ink": "#1B2F1C",
+    "decor": "sun",
+    "fall": "none",
+    "density": 1.0,
+    "blossomRate": 0,
+    "grass": "#3F7F3F",
+    "grassK": 1.15,
+    "litter": null,
+    "fallN": 0,
+    "light": {
+      "color": "#fff0d0",
+      "k": 1.08
+    },
+    "hemiSky": "#d8ecff"
+  },
+  "autumn": {
+    "label": "Fall",
+    "swatch": "#C1622B",
+    "sky": [
+      "#FBEEDF",
+      "#F6E1CC"
+    ],
+    "ground": "#8C5A2E",
+    "pot": "#7A4A28",
+    "potShade": "#5E3A1E",
+    "leaves": [
+      "#8E2F1A",
+      "#B8431F",
+      "#C1622B",
+      "#E0913E",
+      "#E8B04A"
+    ],
+    "accent": "#E0913E",
+    "ink": "#3A2313",
+    "decor": "leaves",
+    "fall": "leaf",
+    "density": 0.9,
+    "blossomRate": 0,
+    "grass": "#8A7B3A",
+    "grassK": 0.85,
+    "litter": {
+      "n": 300,
+      "colors": [
+        "#8E2F1A",
+        "#B8431F",
+        "#C1622B",
+        "#E0913E",
+        "#E8B04A"
+      ]
+    },
+    "fallN": 26,
+    "light": {
+      "color": "#ffe2b8",
+      "k": 0.95
+    },
+    "hemiSky": "#f0e4d0"
+  },
+  "latefall": {
+    "label": "Late fall",
+    "swatch": "#8A5A30",
+    "sky": [
+      "#F3EBDD",
+      "#EADFCB"
+    ],
+    "ground": "#6E5A3A",
+    "pot": "#5E4630",
+    "potShade": "#46331F",
+    "leaves": [
+      "#6B4A2B",
+      "#8A5A30",
+      "#A8703A",
+      "#7A5632"
+    ],
+    "accent": "#A8703A",
+    "ink": "#33210F",
+    "decor": "leaves",
+    "fall": "leaf",
+    "density": 0.2,
+    "blossomRate": 0,
+    "grass": "#7A6A3A",
+    "grassK": 0.7,
+    "litter": {
+      "n": 520,
+      "colors": [
+        "#6B4A2B",
+        "#8A5A30",
+        "#A8703A",
+        "#7A5632",
+        "#5C3F24"
+      ]
+    },
+    "fallN": 20,
+    "light": {
+      "color": "#f0e0c8",
+      "k": 0.85
+    },
+    "hemiSky": "#e4e0d6"
+  },
+  "winter": {
+    "label": "Winter",
+    "swatch": "#5F8CA6",
+    "sky": [
+      "#EDF3F6",
+      "#DEE9EF"
+    ],
+    "ground": "#EAF0F6",
+    "pot": "#4A3B30",
+    "potShade": "#382C23",
+    "leaves": [
+      "#DCE8F1",
+      "#C3D4E0",
+      "#F2F7FB",
+      "#B4C8D6"
+    ],
+    "accent": "#FFFFFF",
+    "ink": "#26343B",
+    "decor": "snow",
+    "fall": "snow",
+    "density": 0.14,
+    "blossomRate": 0,
+    "grass": "#CFE0E4",
+    "grassK": 0.55,
+    "litter": null,
+    "fallN": 0,
+    "snow": 1,
+    "light": {
+      "color": "#dce8ff",
+      "k": 0.8
+    },
+    "hemiSky": "#d6e4f6"
+  },
+  "sakura": {
+    "label": "Blossom",
+    "swatch": "#F2A0BE",
+    "sky": [
+      "#FBEFF3",
+      "#F7E3EA"
+    ],
+    "ground": "#7DB56A",
+    "pot": "#6B4A3A",
+    "potShade": "#52382B",
+    "leaves": [
+      "#F4A6C3",
+      "#F7C6D8",
+      "#EF8FB2",
+      "#FBE0EA"
+    ],
+    "accent": "#FFFFFF",
+    "ink": "#3A1F2C",
+    "decor": "blossom",
+    "fall": "petal",
+    "density": 1.0,
+    "blossomRate": 0.22,
+    "grass": "#7DB56A",
+    "grassK": 1.0,
+    "litter": {
+      "n": 520,
+      "colors": [
+        "#F4B6CB",
+        "#FBE3EC",
+        "#EF8FB2"
+      ]
+    },
+    "fallN": 34,
+    "fallColors": [
+      "#F4B6CB",
+      "#FBE3EC",
+      "#EF8FB2"
+    ],
+    "light": {
+      "color": "#fff0ee",
+      "k": 1.0
+    },
+    "hemiSky": "#f4ecff"
+  },
+  "wet": {
+    "label": "Wet season",
+    "swatch": "#17753C",
+    "sky": [
+      "#E4F2EA",
+      "#D3E8DB"
+    ],
+    "ground": "#1F5A30",
+    "pot": "#5A3F2A",
+    "potShade": "#43301F",
+    "leaves": [
+      "#0F5A2E",
+      "#17753C",
+      "#1F8A48",
+      "#0C4A28"
+    ],
+    "accent": "#F4C042",
+    "ink": "#0F2A1A",
+    "decor": "sun",
+    "fall": "none",
+    "density": 1.0,
+    "blossomRate": 0,
+    "grass": "#1F6B35",
+    "grassK": 1.5,
+    "litter": null,
+    "fallN": 0,
+    "light": {
+      "color": "#cfe3e0",
+      "k": 0.55
+    },
+    "hemiSky": "#c9dfe0"
+  },
+  "dry": {
+    "label": "Dry season",
+    "swatch": "#C9B25A",
+    "sky": [
+      "#FAF1DB",
+      "#F3E6C5"
+    ],
+    "ground": "#B9A163",
+    "pot": "#6B5232",
+    "potShade": "#523E24",
+    "leaves": [
+      "#9A8B3A",
+      "#B7A24A",
+      "#C9B25A",
+      "#8A7A35"
+    ],
+    "accent": "#C9B25A",
+    "ink": "#3A3010",
+    "decor": "sun",
+    "fall": "leaf",
+    "density": 0.42,
+    "blossomRate": 0,
+    "grass": "#C2A85A",
+    "grassK": 0.8,
+    "litter": {
+      "n": 160,
+      "colors": [
+        "#B89A4A",
+        "#9A7B34",
+        "#C9B25A"
+      ]
+    },
+    "fallN": 10,
+    "light": {
+      "color": "#ffe0a0",
+      "k": 1.12
+    },
+    "hemiSky": "#fbeccd"
+  }
+};
+  const FALL_GLYPH = { petal:"🌸", leaf:"🍂", snow:"❄" };
 
   // Non-QR symbologies routed through bwip-js. Capacity notes are approximate,
   // real limits are enforced by catching bwip-js's own errors.
@@ -13502,7 +13723,6 @@ root.QRTree = { create, SPECIES };
     custom: false,
     view: "tree",
     species: "oak",
-    weather: "auto",
     frame: "none",
     frameText: "SCAN ME",
     barColor: "#20301f",
@@ -13913,7 +14133,7 @@ root.QRTree = { create, SPECIES };
     const layer = document.getElementById("fallLayer");
     layer.innerHTML = "";
     const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (state.codeType !== "qrcode" || GL.on || state.view !== "tree" || reduceMotion){ layer.hidden = true; return; }
+    if (state.codeType !== "qrcode" || GL.on || state.view !== "tree" || reduceMotion || SEASONS[state.season].fall === "none"){ layer.hidden = true; return; }
     layer.hidden = false;
     // wait for the grow-in animation to finish so the code's position is measured accurately
     fallTimer = setTimeout(()=>{
@@ -14012,76 +14232,39 @@ root.QRTree = { create, SPECIES };
     const theme = SEASONS[state.season];
     const light = state.reliable ? "#FFFFFF" : state.custom ? state.bgColor : "#FBF9F1";
     const qr = state.reliable ? "#000000" : state.custom ? state.barColor : theme.ink;
-    return { leaves:theme.leaves, accent:theme.accent, bark:QRTree.SPECIES[state.species].bark, qr, light, ground:theme.ground, tones:(state.reliable || state.custom) ? [qr] : null };
+    return { leaves:theme.leaves, accent:theme.accent, bark:QRTree.SPECIES[state.species].bark, qr, light, ground:theme.ground, tones:(state.reliable || state.custom) ? [qr] : null,
+      density:theme.density, blossomRate:theme.blossomRate, grass:theme.grass, grassK:theme.grassK, litter:theme.litter, fallN:theme.fallN, fallColors:theme.fallColors, snow:theme.snow || 0, sun:theme.light, hemiSky:theme.hemiSky };
   }
-  // ---------- Theatre.js: the view-change and weather transitions are keyframed sequences ----------
+  // ---------- Theatre.js: the tree <-> sky change is a keyframed, eased sequence ----------
   const SEQ = 1.7;
-  const WX_ORDER = ["clear","cloudy","rain","snow","fog","storm","wind"];
-  const WX_BASE = { rain:0, snow:0, fog:0, cloud:0, sun:0.5, wind:0.25, storm:0 };
-  const WX = {
-    clear:{ sun:1, cloud:0.08, wind:0.25 }, cloudy:{ sun:0.25, cloud:0.8, wind:0.35 }, rain:{ rain:0.85, cloud:0.9, wind:0.45, sun:0 },
-    snow:{ snow:1, cloud:0.7, wind:0.2, sun:0.1 }, fog:{ fog:1, cloud:0.55, wind:0.1, sun:0.2 }, storm:{ rain:1, cloud:1, wind:1, storm:1, sun:0 }, wind:{ wind:1, cloud:0.3, sun:0.7 }
-  };
-  const WX_AUTO = { spring:"rain", summer:"clear", autumn:"wind", winter:"snow" };
-  const TH = { ok:false, started:false, busy:false, cur:null, wtoken:0 };
-  function wxFull(name){ return Object.assign({}, WX_BASE, WX[name]); }
+  const TH = { ok:false, started:false, busy:false };
   function theatreInit(){
     if (TH.started) return; TH.started = true;
     try {
       const { getProject, types } = window.TheatreCore;
-      const kf = (id, position, value, right, h) => ({ id, position, value, handles:h || [0.4,0,0.6,1], connectedRight:right !== false, connectedLeft:true, type:"bezier" });
-      const trackOf = (name, kfs) => ({ type:"BasicKeyframedTrack", __debugName:name, keyframes:kfs });
-      const tIds = {}, tData = {};
-      tData.m = trackOf("m", [kf("m0",0,0), kf("m1",SEQ,1)]);
-      tData.wf = trackOf("wf", [kf("w0",0,1,true,[0.2,0,0.4,1]), kf("w1",0.5,0), kf("w2",SEQ,0)]);
-      const wData = {}, wIds = {};
-      Object.keys(WX_BASE).forEach(k => {
-        const kfs = []; WX_ORDER.forEach((n,i) => { const full = wxFull(n); kfs.push(kf(k+"h"+i, 2*i, full[k])); kfs.push(kf(k+"c"+i, 2*i+1, WX_BASE[k], false)); });
-        wData[k] = trackOf(k, kfs); wIds['["'+k+'"]'] = k;
-      });
-      const state = { sheetsById:{
-        Scene:{ staticOverrides:{ byObject:{} }, sequence:{ subUnitsPerUnit:30, length:SEQ, type:"PositionalSequence", tracksByObject:{ Transition:{ trackData:tData, trackIdByPropPath:{ '["m"]':"m", '["wf"]':"wf" } } } } },
-        Weather:{ staticOverrides:{ byObject:{} }, sequence:{ subUnitsPerUnit:30, length:WX_ORDER.length*2, type:"PositionalSequence", tracksByObject:{ Sky:{ trackData:wData, trackIdByPropPath:wIds } } } }
-      }, definitionVersion:"0.4.0", revisionHistory:[] };
-      const project = getProject("QR Grove", { state });
-      const sheet = project.sheet("Scene"), wsheet = project.sheet("Weather");
-      const num = (d) => types.number(d, { range:[0,1] });
-      const tObj = sheet.object("Transition", { m:num(0), wf:num(1) });
-      const wProps = {}; Object.keys(WX_BASE).forEach(k => wProps[k] = num(WX_BASE[k]));
-      const sObj = wsheet.object("Sky", wProps);
-      tObj.onValuesChange(v => { if (TH.ok && GL.on) GL.api.setTransition(v.m, v.wf); });
-      sObj.onValuesChange(v => { if (TH.ok && GL.api && GL.on) GL.api.setWeather(v); });
-      TH.sheet = sheet; TH.wsheet = wsheet;
-      project.ready.then(() => { TH.ok = true; if (GL.on){ glSetView(state.view, false); weatherApply(true); } }).catch(()=>{});
+      const kf = (id, position, value) => ({ id, position, value, handles:[0.4,0,0.6,1], connectedRight:true, connectedLeft:true, type:"bezier" });
+      const saved = { sheetsById:{ Scene:{ staticOverrides:{ byObject:{} }, sequence:{ subUnitsPerUnit:30, length:SEQ, type:"PositionalSequence", tracksByObject:{ Transition:{
+        trackData:{ m:{ type:"BasicKeyframedTrack", __debugName:"m", keyframes:[kf("m0",0,0), kf("m1",SEQ,1)] } }, trackIdByPropPath:{ '["m"]':"m" } } } } } }, definitionVersion:"0.4.0", revisionHistory:[] };
+      const project = getProject("QR Grove", { state:saved });
+      const sheet = project.sheet("Scene");
+      const tObj = sheet.object("Transition", { m: types.number(0, { range:[0,1] }) });
+      tObj.onValuesChange(v => { if (TH.ok && GL.on) GL.api.setTransition(v.m); });
+      TH.sheet = sheet;
+      project.ready.then(() => { TH.ok = true; if (GL.on) glSetView(state.view, false); }).catch(()=>{});
     } catch(e){ TH.ok = false; }
   }
   function glSetView(v, animate){
     const target = v === "sky" ? 1 : 0;
     if (!TH.ok){ if (animate) GL.api.animateTo(target, SEQ*1000); else GL.api.setMorph(target); return; }
     const seq = TH.sheet.sequence; seq.pause();
-    if (!animate){ seq.position = target ? SEQ : 0; GL.api.setTransition(target, target ? 0 : 1); return; }
+    if (!animate){ seq.position = target ? SEQ : 0; GL.api.setTransition(target); return; }
     const cur = Math.min(SEQ, Math.max(0, seq.position)); TH.busy = true;
     const done = () => { TH.busy = false; if (state.view === "tree") GL.api.start(); };
     if (target){ if (cur >= SEQ - 1e-3){ done(); return; } GL.api.stop(); seq.play({ range:[cur, SEQ], rate:1 }).then(done); }
     else { if (cur <= 1e-3){ done(); return; } seq.play({ range:[0, cur], direction:"reverse", rate:1 }).then(done); }
   }
-  // weather: fade the current preset out, then the next one in — both are Theatre sequence ranges
-  function weatherApply(force){
-    const name = state.weather === "auto" ? WX_AUTO[state.season] : state.weather;
-    if (!force && name === TH.cur) return;
-    const prev = TH.cur; TH.cur = name;
-    if (!TH.ok){ GL.api.setWeather(wxFull(name)); return; }
-    const seq = TH.wsheet.sequence, iN = WX_ORDER.indexOf(name), tok = ++TH.wtoken; seq.pause();
-    if (prev == null || force){ seq.position = 2*iN; return; }
-    const iO = WX_ORDER.indexOf(prev);
-    seq.play({ range:[2*iO, 2*iO + 1], rate:1.7 }).then(() => {
-      if (tok !== TH.wtoken) return;
-      seq.position = 2*iN + 1; seq.play({ range:[2*iN, 2*iN + 1], direction:"reverse", rate:1.2 });
-    });
-  }
   let lastSceneKey = "", planeToken = 0;
   // where the finished (frame + code) picture sits, in the same units as the code itself
-  let lastWxKey = "";
   function codeGeom(){
     const {n} = buildMatrix(target()), size = (n + 8) * 14, band = Math.max(46, size*0.12);
     if (state.frame === "none") return { W:size, H:size, offX:0, offY:0, size };
@@ -14115,7 +14298,7 @@ root.QRTree = { create, SPECIES };
     try {
       glw.hidden = false; glw.style.opacity = 1; wrap.hidden = true; GL.size();
       if (key !== lastSceneKey){
-        GL.api.build({ modules:m.modules, n:m.n, seed:target(), species:state.species, blossom:SEASONS[state.season].decor === "blossom", palette:glPalette() });
+        GL.api.build({ modules:m.modules, n:m.n, seed:target(), species:state.species, palette:glPalette() });
         lastSceneKey = key;
       }
     } catch(e){ GL.ok = false; GL.on = false; lastSceneKey = ""; glw.hidden = true; return false; }
@@ -14127,7 +14310,6 @@ root.QRTree = { create, SPECIES };
       glSetView(state.view, false);
       if (state.view === "sky") GL.api.stop(); else GL.api.start();
     }
-    weatherApply(key !== lastWxKey); lastWxKey = key;
     const t = target(), cap = document.getElementById("caption");
     cap.textContent = (state.view === "tree" ? "planting: " : "scan: ") + (t.length > 50 ? t.slice(0,47)+"..." : t);
     cap.hidden = false;
@@ -14143,7 +14325,7 @@ root.QRTree = { create, SPECIES };
   function applyTypeUI(){
     const t = state.codeType, qr = t === "qrcode", styled = qr || !!(BWIP_TYPES[t] && BWIP_TYPES[t].styled);
     const set = (id, show) => { document.getElementById(id).hidden = !show; };
-    set("viewBar", qr); set("seasonField", qr); set("speciesField", qr); set("weatherField", qr); set("reliableField", qr); set("logoField", qr); set("resetColors", qr);
+    set("viewBar", qr); set("seasonField", qr); set("speciesField", qr); set("reliableField", qr); set("logoField", qr); set("resetColors", qr);
     set("patternField", styled); set("eyeField", styled); set("noStyleHint", !styled);
   }
 
@@ -14236,12 +14418,6 @@ root.QRTree = { create, SPECIES };
   wireChipGroup("patternGrid", "pattern", "data-pattern");
   wireChipGroup("eyeGrid", "eye", "data-eye");
   wireChipGroup("speciesGrid", "species", "data-species");
-  document.getElementById("weatherGrid").addEventListener("click", (e)=>{
-    const b = e.target.closest("button[data-weather]"); if (!b) return;
-    state.weather = b.dataset.weather;
-    [...b.parentNode.children].forEach(x => x.setAttribute("aria-pressed", x === b ? "true":"false"));
-    if (GL.on) weatherApply(false);
-  });
 
   // ---------- logo ----------
   const logoInput = document.getElementById("logoInput");
@@ -14356,7 +14532,6 @@ root.QRTree = { create, SPECIES };
     [...document.getElementById("patternGrid").children].forEach(b => b.setAttribute("aria-pressed", b.dataset.pattern===state.pattern ? "true":"false"));
     [...document.getElementById("eyeGrid").children].forEach(b => b.setAttribute("aria-pressed", b.dataset.eye===state.eye ? "true":"false"));
     [...document.getElementById("speciesGrid").children].forEach(b => b.setAttribute("aria-pressed", b.dataset.species===state.species ? "true":"false"));
-    [...document.getElementById("weatherGrid").children].forEach(b => b.setAttribute("aria-pressed", b.dataset.weather===state.weather ? "true":"false"));
     [...frameToggle.children].forEach(b => b.setAttribute("aria-pressed", b.dataset.frame===state.frame ? "true":"false"));
     frameTextInput.value = state.frameText;
     frameTextInput.hidden = state.frame === "none";
