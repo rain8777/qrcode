@@ -125,6 +125,14 @@
   .scan-result .meta{ font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-soft); margin-bottom:6px; }
   .scan-result pre{ margin:0 0 12px; font-family:'IBM Plex Mono',monospace; font-size:12.5px; white-space:pre-wrap; word-break:break-all; max-height:200px; overflow:auto; }
   .scan-result.fail{ border-color:var(--bad); color:var(--bad); font-size:13px; line-height:1.5; }
+  .kit-row{ display:flex; gap:8px; margin-top:8px; }
+  .kit-row input[type=text]{ flex:1; min-width:0; }
+  .kit-chip{ display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); background:#fff; padding:6px 6px 6px 10px; font-size:12px; cursor:pointer; }
+  .kit-chip:hover{ border-color:var(--ink); }
+  .kit-chip i{ font-style:normal; width:16px; height:16px; line-height:15px; text-align:center; border-radius:50%; color:var(--ink-soft); }
+  .kit-chip i:hover{ background:var(--ink); color:#fff; }
+  .kit-dot{ width:11px; height:11px; border-radius:50%; border:1px solid rgba(0,0,0,.2); }
+  input[type=range]{ width:100%; accent-color:var(--ink); }
   .view-bar{ position:absolute; top:16px; left:18px; z-index:3; }
   @keyframes tiltOut{ from{transform:perspective(1100px) rotateX(0);opacity:1;} to{transform:perspective(1100px) rotateX(78deg) scale(.88);opacity:0;} }
   @keyframes tiltIn{ from{transform:perspective(1100px) rotateX(78deg) scale(.88);opacity:0;} to{transform:perspective(1100px) rotateX(0) scale(1);opacity:1;} }
@@ -297,7 +305,42 @@
             <input type="file" id="logoInput" accept="image/*">
             <button id="clearLogo" type="button">Clear</button>
           </div>
-          <div class="hint">QR Code only — it uses high error-correction so the code still scans with a logo.</div>
+          <div class="pattern-grid" id="logoShapeGrid" style="margin-top:8px;">
+            <button class="chip-btn" data-lshape="rounded" aria-pressed="true">Rounded</button>
+            <button class="chip-btn" data-lshape="circle" aria-pressed="false">Circle</button>
+            <button class="chip-btn" data-lshape="square" aria-pressed="false">Square</button>
+          </div>
+          <input type="range" id="logoScale" min="12" max="24" value="18" step="1" style="margin-top:10px;" aria-label="Logo size">
+          <div class="hint" id="logoHint">QR Code only — a logo switches the code to high error-correction. Up to 20% stays reliably scannable.</div>
+        </div>
+
+        <div class="field" id="brandField">
+          <label>Brand</label>
+          <input type="text" id="brandName" placeholder="Brand name — shown on the frame and the sign" maxlength="40">
+          <div class="color-row" style="margin-top:8px;align-items:center;">
+            <div class="color-field"><input type="color" id="frameColor" value="#20301f" aria-label="Brand accent color (frame)"></div>
+            <button type="button" class="template-btn" id="brandFromLogo" style="flex:1;">Colors from logo</button>
+          </div>
+          <div style="margin-top:14px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);">Brand the whole code</div>
+          <div class="pattern-grid" id="brandFillGrid" style="margin-top:6px;">
+            <button class="chip-btn" data-bfill="solid" aria-pressed="true">Solid</button>
+            <button class="chip-btn" data-bfill="gradient" aria-pressed="false">Gradient</button>
+            <button class="chip-btn" data-bfill="image" aria-pressed="false">Logo fill</button>
+          </div>
+          <div class="pattern-grid" id="brandTogGrid" style="margin-top:8px;grid-template-columns:repeat(3,1fr);">
+            <button class="chip-btn" data-btog="accentEyes" aria-pressed="false">Accent eyes</button>
+            <button class="chip-btn" data-btog="watermark" aria-pressed="false">Watermark</button>
+            <button class="chip-btn" data-btog="logoCenter" aria-pressed="true">Center logo</button>
+          </div>
+          <div class="hint" style="margin-top:6px;">Gradient blends your code color into the accent across every module. Logo fill paints the modules with your logo (darkened so it still scans). Watermark tiles a faint logo behind the code.</div>
+          <div class="hint" id="brandHint">Accent color paints the frame. A brand name turns on the banner frame and a signpost in Tree view.</div>
+          <div class="kit-row"><input type="text" id="kitName" placeholder="Kit name" maxlength="30"><button type="button" class="template-btn" id="kitSave">Save brand kit</button></div>
+          <div class="templates-row" id="kitList" style="margin-top:8px;"></div>
+          <div class="kit-row">
+            <button type="button" class="template-btn" id="kitExport">Export kits</button>
+            <button type="button" class="template-btn" id="kitImportBtn">Import kits</button>
+            <input type="file" id="kitImport" accept="application/json,.json" hidden>
+          </div>
         </div>
 
         <div class="field">
@@ -13165,7 +13208,10 @@ function create(canvas, ctx, opts){
     tileRest.set(pal.ground).multiplyScalar(0.72);
     const tones = (pal.tones && pal.tones.length ? pal.tones.map(c => new T.Color(c)) : pal.leaves.map(c => deepTone(new T.Color(c))));
     tileTone = new Float32Array(D*3); const modTone = new Uint16Array(D);
-    for (let i=0;i<D;i++){ const t = tones[Math.floor(rnd()*tones.length)]; modTone[i] = 0; tileTone[3*i]=t.r; tileTone[3*i+1]=t.g; tileTone[3*i+2]=t.b; }
+    const gA = pal.gradient ? new T.Color(pal.gradient[0]) : null, gB = pal.gradient ? new T.Color(pal.gradient[1]) : null;
+    for (let i=0;i<D;i++){ let t = tones[Math.floor(rnd()*tones.length)];       // (rnd() always consumed, so the tree never changes with the fill mode)
+      if (gA){ t = gA.clone().lerp(gB, clamp01((dark[2*i] + dark[2*i+1])/(2*(n-1)))); }
+      modTone[i] = 0; tileTone[3*i]=t.r; tileTone[3*i+1]=t.g; tileTone[3*i+2]=t.b; }
     group.add(rim, plate, tiles);
 
     // tree skeleton
@@ -13260,7 +13306,7 @@ function create(canvas, ctx, opts){
     // the finished, fully customised code lives in the scene too, so the view change never swaps to another layer
     planeMesh = new T.Mesh(new T.PlaneGeometry(1,1).rotateX(-Math.PI/2), new T.MeshBasicMaterial({ transparent:true, opacity:0, depthWrite:false }));
     planeMesh.renderOrder = 5; planeMesh.visible = false; group.add(planeMesh);
-    applyPlane();
+    applyPlane(); applySign();
     { const sc = key.shadow.camera, e = P*0.78; sc.left = -e; sc.right = e; sc.top = e; sc.bottom = -e; sc.near = 1; sc.far = 320; sc.updateProjectionMatrix(); key.target.position.set(0, 0, 0); }
     st.warmUntil = performance.now() + 2500; st.needShadow = true; applyLevel();
     update(st.morph, true);
@@ -13269,6 +13315,21 @@ function create(canvas, ctx, opts){
   }
 
   function setTransition(m){ st.morph = clamp01(m); if (st.ready){ update(st.morph); fit(); render(); } }
+
+  // a small signpost standing in the grass beside the plot, carrying the brand (logo + name) in the tree view
+  let signMesh = null;
+  function applySign(){
+    if (!group) return;
+    if (signMesh){ group.remove(signMesh); signMesh.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()); }); signMesh = null; }
+    if (!st.signTex) return;
+    const P = st.P, w = Math.max(10, P*0.42), h = w/2, post = 1.7, wood = new T.MeshLambertMaterial({ color:0x7a5532 });
+    const g = new T.Group();
+    const board = new T.Mesh(new T.BoxGeometry(w, h, 0.28), [wood, wood, wood, wood, new T.MeshBasicMaterial({ map:st.signTex }), wood]);
+    board.position.set(0, post + h/2, 0); board.castShadow = true; g.add(board);
+    for (const sx of [-1,1]){ const pm = new T.Mesh(new T.CylinderGeometry(0.2, 0.24, post + h*0.6, 6), wood); pm.position.set(sx*w*0.36, (post + h*0.6)/2, -0.4); pm.castShadow = true; g.add(pm); }
+    g.position.set(P/2 + 3.2, -0.15, P*0.1); g.rotation.y = Math.PI/4; signMesh = g; group.add(g);
+  }
+  function setSign(c){ if (st.signTex) st.signTex.dispose(); st.signTex = c ? texFrom(c) : null; applySign(); if (st.ready){ update(st.morph, true); fit(); render(); } }
 
   function applyPlane(){
     if (!planeMesh) return;
@@ -13330,6 +13391,7 @@ function create(canvas, ctx, opts){
     { const flat = smooth(clamp01((m - 0.5)/0.4)), kk = st.keyK == null ? 1 : st.keyK;
       key.intensity = lerp(0.82*Math.PI*kk, 0, flat); hemi.intensity = lerp((0.64 + (1 - kk)*0.35)*Math.PI, Math.PI, flat);
       hemi.color.copy(st.hemiSky || _white).lerp(_white, flat); hemi.groundColor.set(0x7d8a5a).lerp(_white, flat); }
+    if (signMesh){ const ks = 1 - smooth(clamp01(m*2.2)); signMesh.visible = ks > 0.01; signMesh.scale.setScalar(Math.max(ks, 0.0001)); }
     const sk = 1 - smooth(clamp01(m*2));                           // woody skeleton withdraws into the plot
     skelGroup.visible = sk > 0.002; skelGroup.scale.setScalar(Math.max(sk, 0.0001));
     fall.visible = st.FN > 0 && m < 0.02;
@@ -13383,6 +13445,8 @@ function create(canvas, ctx, opts){
     const h = st.P/2 + 1.7, s = 1 - smooth(clamp01(m*1.8)), R = st.R*s, H = st.H*s;
     const pts = [[-h,0,-h],[h,0,-h],[-h,0,h],[h,0,h]];
     if (s > 0.001) for (const y of [0,H]) for (const sx of [-1,1]) for (const sz of [-1,1]) pts.push([sx*R, y, sz*R]);
+    if (signMesh){ const ks = 1 - smooth(clamp01(m*2.2)), ex = st.P/2 + 3.2, ez = st.P*0.1, r = Math.max(10, st.P*0.42)*0.6, hh = Math.max(10, st.P*0.42)/2 + 3.6;
+      for (const dx of [-r, r]) for (const dz of [-r, r]) for (const y of [0, hh]) pts.push([(ex + dx)*ks, y*ks, (ez + dz)*ks]); }
     if (planeMesh && st.planeGeom){ const s2 = smooth(clamp01((m-0.3)/0.7)), hx = planeMesh.scale.x/2, hz = planeMesh.scale.z/2, cx0 = planeMesh.position.x, cz0 = planeMesh.position.z;
       for (const sx of [-1,1]) for (const sz of [-1,1]) pts.push([(cx0+sx*hx)*s2, 0, (cz0+sz*hz)*s2]); }
     let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9; const v = new T.Vector3();
@@ -13420,7 +13484,7 @@ function create(canvas, ctx, opts){
   function stop(){ st.running = false; if (st.raf) cancelAnimationFrame(st.raf); st.raf = 0; }
   function animateTo(to, ms, done){ st.anim = { from:st.morph, to, ms, t0:performance.now(), done }; start(); }
 
-  return { build, setTransition, applyLevel, uni, setPlaneGeom, setPlaneCanvas, setMorph, animateTo, resize, start, stop, render, st, canvas:renderer.domElement, isReady:()=>st.ready, dispose(){ stop(); disposeGroup(); renderer.dispose(); } };
+  return { build, setSign, setTransition, applyLevel, uni, setPlaneGeom, setPlaneCanvas, setMorph, animateTo, resize, start, stop, render, st, canvas:renderer.domElement, isReady:()=>st.ready, dispose(){ stop(); disposeGroup(); renderer.dispose(); } };
 }
 root.QRTree = { create, SPECIES };
 })(typeof window !== "undefined" ? window : globalThis);
@@ -13765,6 +13829,14 @@ root.QRTree = { create, SPECIES };
     pattern: "square",
     eye: "square",
     logoDataUrl: null,
+    logoShape: "rounded",
+    logoScale: 0.18,
+    brandName: "",
+    brandFill: "solid",
+    accentEyes: false,
+    watermark: false,
+    logoCenter: true,
+    frameColor: null,
     reliable: false,
     text: "https://claude.ai",
     custom: false,
@@ -13814,7 +13886,7 @@ root.QRTree = { create, SPECIES };
 
   function buildMatrix(text){
     const cleanText = normalizeLink(text);
-    const qr = qrcode(0, state.logoDataUrl ? "H" : "Q");      // Q = larger, easier-to-scan modules; H only when a logo needs the extra redundancy
+    const qr = qrcode(0, (state.logoDataUrl && (state.logoCenter || state.brandFill === "image")) ? "H" : "Q");      // Q = larger, easier-to-scan modules; H only when a logo needs the extra redundancy
     qr.addData(cleanText);
     qr.make();
     const n = qr.getModuleCount();
@@ -13926,16 +13998,7 @@ root.QRTree = { create, SPECIES };
     g += `</g>`;
 
     // logo overlay — high-ECC QR only, capped at a verified-safe size
-    if (state.logoDataUrl){
-      const logoFrac = 0.18;
-      const logoSize = plaqueSize * logoFrac;
-      const lx = plaqueX + plaqueSize/2 - logoSize/2;
-      const ly = plaqueY + plaqueSize/2 - logoSize/2;
-      const pad = logoSize * 0.14;
-      g += `<rect x="${lx-pad}" y="${ly-pad}" width="${logoSize+pad*2}" height="${logoSize+pad*2}" rx="${(logoSize+pad*2)*0.18}" fill="${light}" stroke="${theme.pot}" stroke-width="1.5"/>`;
-      g += `<clipPath id="logoClip"><rect x="${lx}" y="${ly}" width="${logoSize}" height="${logoSize}" rx="${logoSize*0.16}"/></clipPath>`;
-      g += `<image href="${state.logoDataUrl}" x="${lx}" y="${ly}" width="${logoSize}" height="${logoSize}" preserveAspectRatio="xMidYMid slice" clip-path="url(#logoClip)"/>`;
-    }
+    g += logoMarkup(plaqueX + plaqueSize/2, plaqueY + plaqueSize/2, plaqueSize*state.logoScale, light, theme.pot);
 
     g += `</g>`;
     svg += g;
@@ -14117,12 +14180,14 @@ root.QRTree = { create, SPECIES };
     const W = (m.w + q*2) * cell, H = (m.h + q*2) * cell;
     let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escXml(cfg.label)} for ${escXml(text)}">`;
     svg += `<rect width="${W}" height="${H}" fill="${bg}" rx="12"/>`;
+    const bp = brandPaint(Math.max(W, H), bg, fg);
+    svg += bp.defs + bp.wm.replace(/width="[\d.]+" height="[\d.]+"/, `width="${W}" height="${H}"`);
     for (let r=0;r<m.h;r++) for (let c=0;c<m.w;c++){
       if (m.px[r*m.w+c] !== 1) continue;
       if (r < 7 && c < 7) continue;                       // finder → custom eye
-      svg += dataModuleShape((q+c)*cell, (q+r)*cell, cell, state.pattern, fg);
+      svg += dataModuleShape((q+c)*cell, (q+r)*cell, cell, state.pattern, bp.fill);
     }
-    svg += drawEye(q*cell, q*cell, cell, state.eye, fg, bg);
+    svg += drawEye(q*cell, q*cell, cell, state.eye, bp.eye, bg);
     svg += `</svg>`;
     return wrapFrame(svg, W, H, bg, fg);
   }
@@ -14149,27 +14214,90 @@ root.QRTree = { create, SPECIES };
   }
 
   // ---------- frame wrapper (works for any rendered code) ----------
+  // Paint that spans the WHOLE code (not just the middle): gradient, logo fill, accent eyes, watermark.
+  const HEX6 = /^#[0-9a-f]{6}$/i;
+  function darkEnough(col, bg){ let c = col; for (let i=0;i<14 && contrast(c, bg) < 4.5;i++) c = mix(c, "#000000", 0.18); return c; }
+  // Logo fill must stay dark enough to scan, in every renderer: bake the darkening into the pixels instead of relying on an SVG filter.
+  function makeFillImage(img){
+    const S = 512, c = document.createElement("canvas"); c.width = c.height = S; const x = c.getContext("2d", { willReadFrequently:true });
+    const iw = img.naturalWidth || img.width || S, ih = img.naturalHeight || img.height || S, k = Math.max(S/iw, S/ih);
+    x.drawImage(img, (S - iw*k)/2, (S - ih*k)/2, iw*k, ih*k);
+    const id = x.getImageData(0, 0, S, S), d = id.data, lin = v => { v /= 255; return v <= 0.03928 ? v/12.92 : Math.pow((v + 0.055)/1.055, 2.4); };
+    for (let i=0;i<d.length;i+=4){
+      if (d[i] > 232 && d[i+1] > 232 && d[i+2] > 232){ d[i+3] = 0; continue; }            // a white logo background becomes "no image" so the brand ink shows through
+      let r = d[i], g = d[i+1], b = d[i+2]; const gr = 0.3*r + 0.59*g + 0.11*b;
+      r = gr + (r - gr)*1.25; g = gr + (g - gr)*1.25; b = gr + (b - gr)*1.25;                  // keep the brand hue lively
+      r = Math.max(0, r)*0.42; g = Math.max(0, g)*0.42; b = Math.max(0, b)*0.42;
+      const L = 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b);
+      if (L > 0.13){ const f = Math.pow(0.13/L, 0.45); r *= f; g *= f; b *= f; }                // hard cap: always >= ~5:1 against the light background
+      d[i] = r; d[i+1] = g; d[i+2] = b;
+    }
+    x.putImageData(id, 0, 0); return c.toDataURL("image/png");
+  }
+  function ensureFillImage(){
+    if (!state.logoDataUrl || state._fillSrc === state.logoDataUrl || state._fillBusy) return;
+    state._fillBusy = true; const src = state.logoDataUrl, im = new Image();
+    im.onload = () => { try { state.logoFillUrl = makeFillImage(im); state._fillSrc = src; } catch(e){ state.logoFillUrl = null; state._fillSrc = src; } state._fillBusy = false; paint(); };
+    im.onerror = () => { state._fillBusy = false; state._fillSrc = src; state.logoFillUrl = null; };
+    im.src = src;
+  }
+  function brandPaint(size, light, ink){
+    const accent = HEX6.test(state.frameColor || "") ? darkEnough(state.frameColor, light) : null;
+    const mode = state.reliable ? "solid" : state.brandFill;
+    let defs = "", fill = ink, wm = "";
+    if (mode === "gradient"){
+      defs += `<linearGradient id="brandGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${size}" y2="${size}"><stop offset="0" stop-color="${ink}"/><stop offset="1" stop-color="${accent || ink}"/></linearGradient>`;
+      fill = "url(#brandGrad)";
+    } else if (mode === "image" && state.logoDataUrl){
+      if (state._fillSrc !== state.logoDataUrl) ensureFillImage();
+      const baked = state._fillSrc === state.logoDataUrl && state.logoFillUrl;
+      defs += (baked ? "" : `<filter id="brandDark" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="1.25"/><feComponentTransfer><feFuncR type="linear" slope="0.38"/><feFuncG type="linear" slope="0.38"/><feFuncB type="linear" slope="0.38"/></feComponentTransfer></filter>`) +
+              `<pattern id="brandImg" patternUnits="userSpaceOnUse" x="0" y="0" width="${size}" height="${size}"><rect width="${size}" height="${size}" fill="${ink}"/><image href="${baked ? state.logoFillUrl : state.logoDataUrl}" width="${size}" height="${size}" preserveAspectRatio="xMidYMid slice"${baked ? "" : ' filter="url(#brandDark)"'}/></pattern>`;
+      fill = "url(#brandImg)";
+    }
+    if (state.watermark && state.logoDataUrl && !state.reliable){
+      const t = size*0.2;
+      defs += `<pattern id="brandWm" patternUnits="userSpaceOnUse" width="${t}" height="${t}" patternTransform="rotate(-18)"><image href="${state.logoDataUrl}" x="${t*0.18}" y="${t*0.18}" width="${t*0.64}" height="${t*0.64}" preserveAspectRatio="xMidYMid meet" opacity="0.09"/></pattern>`;
+      wm = `<rect width="${size}" height="${size}" fill="url(#brandWm)"/>`;
+    }
+    const eye = (state.accentEyes && accent && !state.reliable) ? accent : fill;
+    return { defs: defs ? `<defs>${defs}</defs>` : "", fill, eye, wm, mode };
+  }
+  function logoMarkup(cx, cy, size, light, stroke){
+    if (!state.logoDataUrl || state.logoCenter === false) return "";
+    const pad = size*0.14, sh = state.logoShape, r = sh === "circle" ? size/2 : sh === "square" ? size*0.04 : size*0.18, R = sh === "circle" ? size/2 + pad : sh === "square" ? size*0.06 : (size + pad*2)*0.2;
+    const lx = cx - size/2, ly = cy - size/2;
+    return `<rect x="${lx-pad}" y="${ly-pad}" width="${size+pad*2}" height="${size+pad*2}" rx="${R}" fill="${light}"${stroke ? ` stroke="${stroke}" stroke-width="1.5"` : ""}/>` +
+           `<clipPath id="logoClip"><rect x="${lx}" y="${ly}" width="${size}" height="${size}" rx="${r}"/></clipPath>` +
+           `<image href="${state.logoDataUrl}" x="${lx}" y="${ly}" width="${size}" height="${size}" preserveAspectRatio="xMidYMid slice" clip-path="url(#logoClip)"/>`;
+  }
+  const frameBand = h => Math.max(46, h*0.12) * (state.brandName.trim() ? 1.5 : 1);
   function wrapFrame(innerSvg, w, h, bg, fg, clear){
     const bgFill = clear ? "none" : bg;
     if (state.frame === "none") return innerSvg;
     const body = innerSvg.replace(/^<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
-    const label = escXml((state.frameText || "SCAN ME").toUpperCase());
-    const fs = Math.max(16, Math.min(28, w*0.06));
-    const band = Math.max(46, h*0.12);
-    const txt = (cx, y, col) => `<text x="${cx}" y="${y}" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-weight="700" font-size="${fs}" letter-spacing="${fs*0.12}" fill="${col}">${label}</text>`;
+    const accent = /^#[0-9a-f]{6}$/i.test(state.frameColor || "") ? state.frameColor : fg;
+    const onAccent = lum(accent) > 0.42 ? "#1a1a1a" : "#ffffff";
+    const brand = escXml(state.brandName.trim()), cta = escXml((state.frameText || "").trim().toUpperCase());
+    const fs = Math.max(16, Math.min(28, w*0.06)), band = frameBand(h);
+    const ff = 'font-family="Inter, Arial, sans-serif"';
+    const label = (cx, yMid, col) => {
+      if (!brand) return `<text x="${cx}" y="${yMid + fs*0.34}" text-anchor="middle" ${ff} font-weight="700" font-size="${fs}" letter-spacing="${fs*0.12}" fill="${col}">${cta || "SCAN ME"}</text>`;
+      const bf = Math.min(fs*1.2, (w*0.86)/Math.max(6, brand.length*0.62)), cf = fs*0.62, total = bf + (cta ? cf*1.5 : 0), y1 = yMid - total/2 + bf*0.82;
+      let o = `<text x="${cx}" y="${y1}" text-anchor="middle" ${ff} font-weight="800" font-size="${bf}" fill="${col}">${brand}</text>`;
+      if (cta) o += `<text x="${cx}" y="${y1 + cf*1.55}" text-anchor="middle" ${ff} font-weight="600" font-size="${cf}" letter-spacing="${cf*0.16}" fill="${col}" opacity="0.88">${cta}</text>`;
+      return o;
+    };
     if (state.frame === "caption"){
       const H = h + band;
-      return `<svg viewBox="0 0 ${w} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${w}" height="${H}" fill="${bgFill}"/><g>${body}</g>${txt(w/2, h + band/2 + fs*0.34, fg)}</svg>`;
+      return `<svg viewBox="0 0 ${w} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${w}" height="${H}" fill="${bgFill}"/><g>${body}</g>${label(w/2, h + band/2, accent)}</svg>`;
     }
     const pad = Math.round(Math.max(w*0.05, 16)), sw = Math.max(4, w*0.014);
     const W = w + pad*2, H = h + pad*2 + band;
     let out = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="${bgFill}"/><g transform="translate(${pad},${pad})">${body}</g>`;
-    if (state.frame === "banner"){
-      out += `<rect x="0" y="${pad*2+h}" width="${W}" height="${band}" fill="${fg}"/>` + txt(W/2, pad*2 + h + band/2 + fs*0.34, bg);
-    } else {
-      out += txt(W/2, pad*2 + h + band/2 + fs*0.34 - pad*0.4, fg);
-    }
-    out += `<rect x="${sw/2}" y="${sw/2}" width="${W-sw}" height="${H-sw}" rx="${pad}" fill="none" stroke="${fg}" stroke-width="${sw}"/></svg>`;
+    if (state.frame === "banner") out += `<rect x="0" y="${pad*2+h}" width="${W}" height="${band}" fill="${accent}"/>` + label(W/2, pad*2 + h + band/2, onAccent);
+    else out += label(W/2, pad*2 + h + band/2 - pad*0.4, accent);
+    out += `<rect x="${sw/2}" y="${sw/2}" width="${W-sw}" height="${H-sw}" rx="${pad}" fill="none" stroke="${accent}" stroke-width="${sw}"/></svg>`;
     return out;
   }
 
@@ -14240,17 +14368,15 @@ root.QRTree = { create, SPECIES };
     const light = state.reliable ? "#FFFFFF" : state.custom ? state.bgColor : "#FBF9F1";
     const pat = state.reliable ? "square" : state.pattern, eye = state.reliable ? "square" : state.eye;
     let svg = `<svg viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QR code for ${escXml(target())}"><rect width="${size}" height="${size}" fill="${light}" rx="16"/>`;
+    const bp = brandPaint(size, light, ink), branded = bp.mode !== "solid";
+    svg += bp.defs + bp.wm;
     const tones = (state.reliable || state.custom) ? [ink] : theme.leaves.map(c => deepTone(c, light, theme.ink));
     for (let r=0;r<n;r++) for (let c=0;c<n;c++){
       if (!modules[r][c] || isFinderZone(n, r, c)) continue;
-      svg += dataModuleShape((quiet+c)*cell, (quiet+r)*cell, cell, pat, tones[(r*7+c*13) % tones.length]);
+      svg += dataModuleShape((quiet+c)*cell, (quiet+r)*cell, cell, pat, branded ? bp.fill : tones[(r*7+c*13) % tones.length]);
     }
-    for (const [er,ec] of [[0,0],[0,n-7],[n-7,0]]) svg += drawEye((quiet+ec)*cell, (quiet+er)*cell, cell, eye, ink, light);
-    if (state.logoDataUrl){
-      const ls = size*0.18, lx = size/2 - ls/2, pad = ls*0.14;
-      svg += `<rect x="${lx-pad}" y="${lx-pad}" width="${ls+pad*2}" height="${ls+pad*2}" rx="${(ls+pad*2)*0.18}" fill="${light}"/>`;
-      svg += `<clipPath id="logoClip"><rect x="${lx}" y="${lx}" width="${ls}" height="${ls}" rx="${ls*0.16}"/></clipPath><image href="${state.logoDataUrl}" x="${lx}" y="${lx}" width="${ls}" height="${ls}" preserveAspectRatio="xMidYMid slice" clip-path="url(#logoClip)"/>`;
-    }
+    for (const [er,ec] of [[0,0],[0,n-7],[n-7,0]]) svg += drawEye((quiet+ec)*cell, (quiet+er)*cell, cell, eye, (branded || state.accentEyes) ? bp.eye : ink, light);
+    svg += logoMarkup(size/2, size/2, size*state.logoScale, light, null);
     return wrapFrame(svg + "</svg>", size, size, light, ink);
   }
 
@@ -14296,7 +14422,7 @@ root.QRTree = { create, SPECIES };
     const light = state.reliable ? "#FFFFFF" : state.custom ? state.bgColor : "#FBF9F1";
     const qr = state.reliable ? "#000000" : state.custom ? state.barColor : theme.ink;
     return { leaves:theme.leaves, accent:theme.accent, bark:QRTree.SPECIES[state.species].bark, qr, light, ground:theme.ground, tones:(state.reliable || state.custom) ? [qr] : null,
-      density:theme.density, blossomRate:theme.blossomRate, grass:theme.grass, grassK:theme.grassK, litter:theme.litter, fallN:theme.fallN, fallColors:theme.fallColors, snow:theme.snow || 0, sun:theme.light, hemiSky:theme.hemiSky };
+      gradient:(!state.reliable && state.brandFill !== "solid" && HEX6.test(state.frameColor || "")) ? [qr, darkEnough(state.frameColor, light)] : null, density:theme.density, blossomRate:theme.blossomRate, grass:theme.grass, grassK:theme.grassK, litter:theme.litter, fallN:theme.fallN, fallColors:theme.fallColors, snow:theme.snow || 0, sun:theme.light, hemiSky:theme.hemiSky };
   }
   // ---------- GSAP: a single eased, interruptible tween drives the tree <-> sky change ----------
   const SEQ = 1.7;
@@ -14320,7 +14446,7 @@ root.QRTree = { create, SPECIES };
   let lastSceneKey = "", planeToken = 0;
   // where the finished (frame + code) picture sits, in the same units as the code itself
   function codeGeom(){
-    const {n} = buildMatrix(target()), size = (n + 8) * 14, band = Math.max(46, size*0.12);
+    const {n} = buildMatrix(target()), size = (n + 8) * 14, band = frameBand(size);
     if (state.frame === "none") return { W:size, H:size, offX:0, offY:0, size };
     if (state.frame === "caption") return { W:size, H:size + band, offX:0, offY:0, size };
     const pad = Math.round(Math.max(size*0.05, 16));
@@ -14336,6 +14462,33 @@ root.QRTree = { create, SPECIES };
   }
   // The customised code (pattern, eyes, logo, frame, colours) becomes a high-resolution texture inside the 3D scene,
   // so tree <-> sky is one continuous animation: leaves land, then the same picture resolves in place.
+  let signKey = "";
+  function refreshSign(){
+    const nm = state.brandName.trim();
+    if (!nm && !state.logoDataUrl){ if (signKey){ signKey = ""; GL.api.setSign(null); } return; }
+    const theme = SEASONS[state.season], ink = state.reliable ? "#000000" : state.custom ? state.barColor : theme.ink;
+    const paper = state.reliable ? "#FFFFFF" : state.custom ? state.bgColor : "#FBF9F1", accent = HEX.test(state.frameColor || "") ? state.frameColor : ink;
+    const key = [nm, state.frameText, ink, paper, accent, state.logoShape, state.logoDataUrl ? state.logoDataUrl.length + state.logoDataUrl.slice(-20) : ""].join("|");
+    if (key === signKey) return; signKey = key;
+    const draw = (img) => {
+      if (key !== signKey) return;
+      const c = document.createElement("canvas"); c.width = 1024; c.height = 512; const x = c.getContext("2d");
+      x.fillStyle = paper; x.fillRect(0,0,1024,512); x.strokeStyle = accent; x.lineWidth = 26; x.strokeRect(13,13,998,486);
+      let tx = 512;
+      if (img){ const S = 300, cx = 200, cy = 256; x.save(); x.beginPath();
+        if (state.logoShape === "circle") x.arc(cx, cy, S/2, 0, 6.2832); else x.rect(cx - S/2, cy - S/2, S, S);
+        x.clip(); const k = Math.max(S/img.width, S/img.height); x.drawImage(img, cx - img.width*k/2, cy - img.height*k/2, img.width*k, img.height*k); x.restore(); tx = 600; }
+      x.fillStyle = accent; x.textAlign = "center"; x.textBaseline = "middle";
+      const maxW = img ? 600 : 880, cta = (state.frameText || "").trim().toUpperCase(); let f = 150;
+      const face = 'Inter, Arial, sans-serif'; x.font = "800 " + f + "px " + face;
+      while (nm && x.measureText(nm).width > maxW && f > 40){ f -= 6; x.font = "800 " + f + "px " + face; }
+      if (nm) x.fillText(nm, tx, cta ? 225 : 256);
+      if (cta){ x.font = "700 62px " + face; x.globalAlpha = 0.85; x.fillText(cta, tx, nm ? 358 : 256); }
+      GL.api.setSign(c);
+    };
+    if (!state.logoDataUrl) draw(null);
+    else { const im = new Image(); im.onload = () => draw(im); im.onerror = () => draw(null); im.src = state.logoDataUrl; }
+  }
   function refreshPlane(){
     const token = ++planeToken, geom = codeGeom();
     const devPx = (GL.api.canvas && GL.api.canvas.width) || 1024, maxT = Math.min(TIER.tex, GL.maxTex || 4096);
@@ -14351,18 +14504,18 @@ root.QRTree = { create, SPECIES };
     let dark = 0; for (const row of m.modules) for (const v of row) if (v) dark++;
     if (dark > MAX_DARK) return false;
     const glw = document.getElementById("glWrap"), wrap = document.getElementById("treeWrap");
-    const key = [target(), state.species, state.season, state.custom, state.reliable, state.barColor, state.bgColor, !!state.logoDataUrl].join("|");
+    const key = [target(), state.species, state.season, state.custom, state.reliable, state.barColor, state.bgColor, !!state.logoDataUrl, state.logoCenter, state.brandFill, state.frameColor].join("|");
     try {
       glw.hidden = false; glw.style.opacity = 1; wrap.hidden = true; GL.size();
       if (key !== lastSceneKey){
         const pm = Math.max(2, qualityCut ? 2 : (dark*TIER.perMod > 9000 ? Math.min(TIER.perMod, 4) : TIER.perMod)), tb = pm >= 6 ? TIER.tileBlades : Math.min(TIER.tileBlades, pm >= 4 ? 3 : 2);
         GL.api.build({ quality:{ perMod:pm >= 6 ? 6 : pm >= 4 ? 4 : 2, tileBlades:tb, ring:qualityCut ? 0.3 : TIER.ring }, modules:m.modules, n:m.n, seed:target(), species:state.species, palette:glPalette() });
-        lastSceneKey = key;
+        lastSceneKey = key; signKey = "";
       }
     } catch(e){ GL.ok = false; GL.on = false; lastSceneKey = ""; glw.hidden = true; return false; }
     GL.on = true;
     document.getElementById("fallLayer").hidden = true;
-    refreshPlane();
+    refreshPlane(); refreshSign();
     if (!GL.api.st.anim && !GS.busy){
       glSetView(state.view, false);
       if (state.view === "sky") GL.api.stop(); else GL.api.start();
@@ -14479,17 +14632,142 @@ root.QRTree = { create, SPECIES };
 
   // ---------- logo ----------
   const logoInput = document.getElementById("logoInput");
+  function toSafeLogo(dataUrl){                          // downscale to <=512px PNG so the SVG / texture / saved kits stay small
+    return new Promise((res) => {
+      const img = new Image();
+      img.onload = () => { try {
+        const k = Math.min(1, 512/Math.max(img.naturalWidth || 512, img.naturalHeight || 512)), w = Math.max(1, Math.round((img.naturalWidth || 512)*k)), h = Math.max(1, Math.round((img.naturalHeight || 512)*k));
+        const c = document.createElement("canvas"); c.width = w; c.height = h; c.getContext("2d").drawImage(img, 0, 0, w, h); res({ url:c.toDataURL("image/png"), img });
+      } catch(e){ res({ url:dataUrl, img }); } };
+      img.onerror = () => res(null);
+      img.src = dataUrl;
+    });
+  }
+  function paletteFromImage(img){
+    const c = document.createElement("canvas"); c.width = c.height = 48; const x = c.getContext("2d", { willReadFrequently:true });
+    x.drawImage(img, 0, 0, 48, 48); const d = x.getImageData(0, 0, 48, 48).data, bk = new Map();
+    for (let i=0;i<d.length;i+=4){
+      if (d[i+3] < 140) continue; const r = d[i], g = d[i+1], b = d[i+2], mx = Math.max(r,g,b), mn = Math.min(r,g,b);
+      if (mn > 236 || mx < 22) continue;                                     // ignore paper-white and pure black
+      const key = (r>>4)<<8 | (g>>4)<<4 | (b>>4), sat = mx ? (mx-mn)/mx : 0, e = bk.get(key) || { n:0, w:0, r:0, g:0, b:0 };
+      e.n++; e.w += 0.35 + sat*1.4; e.r += r; e.g += g; e.b += b; bk.set(key, e);
+    }
+    const list = [...bk.values()].map(e => ({ w:e.w, rgb:[e.r/e.n, e.g/e.n, e.b/e.n] })).sort((a,b) => b.w - a.w);
+    if (!list.length) return null;
+    const hex = v => "#" + v.map(t => Math.round(Math.max(0, Math.min(255, t))).toString(16).padStart(2,"0")).join("");
+    const first = list[0].rgb, far = list.find(e => Math.hypot(e.rgb[0]-first[0], e.rgb[1]-first[1], e.rgb[2]-first[2]) > 80);
+    return [hex(first), far ? hex(far.rgb) : null];
+  }
+  async function brandFromLogo(){
+    if (!state.logoDataUrl){ setBrandHint("Add a logo first, then I'll pull its colors."); return; }
+    const r = await toSafeLogo(state.logoDataUrl); if (!r) return;
+    const pal = paletteFromImage(r.img); if (!pal){ setBrandHint("Couldn't find a distinct color in that logo."); return; }
+    let primary = pal[0], bg = "#FFFFFF";
+    for (let i=0;i<14 && contrast(primary, bg) < 5;i++) primary = mix(primary, "#000000", 0.2);   // keep the code dark enough to scan
+    state.custom = true; state.reliable = false; state.barColor = primary; state.bgColor = bg;
+    state.frameColor = pal[1] || primary;
+    if (pal[1]){ state.brandFill = "gradient"; state.accentEyes = true; }     // brand the whole code, not only the middle
+    if (state.frame === "none") state.frame = "banner";
+    syncControlsFromState(); paint(); setBrandHint("Brand colors taken from your logo.");
+  }
+  function setBrandHint(t){ const h = document.getElementById("brandHint"); if (h) h.textContent = t; }
   logoInput.addEventListener("change", ()=>{
     const file = logoInput.files && logoInput.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ()=>{ state.logoDataUrl = reader.result; paint(); };
+    reader.onload = async ()=>{ const r = await toSafeLogo(reader.result); state.logoDataUrl = r ? r.url : reader.result; paint(); if (!state.custom) brandFromLogo(); };
     reader.readAsDataURL(file);
   });
   document.getElementById("clearLogo").addEventListener("click", ()=>{
     state.logoDataUrl = null;
     logoInput.value = "";
     paint();
+  });
+
+  // ---------- brand: name, accent, logo style ----------
+  document.getElementById("brandName").addEventListener("input", (e)=>{
+    const had = state.brandName.trim(); state.brandName = e.target.value;
+    if (!had && state.brandName.trim() && state.frame === "none"){ state.frame = "banner"; syncControlsFromState(); }
+    paint();
+  });
+  document.getElementById("frameColor").addEventListener("input", (e)=>{ state.frameColor = e.target.value; if (state.frame === "none"){ state.frame = "banner"; syncControlsFromState(); } paint(); });
+  document.getElementById("brandFromLogo").addEventListener("click", brandFromLogo);
+  document.getElementById("brandFillGrid").addEventListener("click", (e)=>{
+    const b = e.target.closest("button[data-bfill]"); if (!b) return;
+    if (b.dataset.bfill === "image" && !state.logoDataUrl){ setBrandHint("Logo fill needs a logo — upload one first."); return; }
+    if (b.dataset.bfill !== "solid" && !HEX6.test(state.frameColor || "")) state.frameColor = HEX6.test(state.barColor) ? mix(state.barColor, "#2b6cb0", 0.55) : "#2b6cb0";
+    state.brandFill = b.dataset.bfill; syncControlsFromState(); paint();
+  });
+  document.getElementById("brandTogGrid").addEventListener("click", (e)=>{
+    const b = e.target.closest("button[data-btog]"); if (!b) return; const k = b.dataset.btog;
+    if (k === "watermark" && !state.logoDataUrl && !state.watermark){ setBrandHint("Watermark needs a logo — upload one first."); return; }
+    if (k === "accentEyes" && !HEX6.test(state.frameColor || "") && !state.accentEyes){ setBrandHint("Pick an accent color first (or use “Colors from logo”)."); return; }
+    state[k] = !state[k]; syncControlsFromState(); paint();
+  });
+  document.getElementById("logoShapeGrid").addEventListener("click", (e)=>{ const b = e.target.closest("button[data-lshape]"); if (!b) return; state.logoShape = b.dataset.lshape; syncControlsFromState(); paint(); });
+  document.getElementById("logoScale").addEventListener("input", (e)=>{
+    state.logoScale = Math.min(0.24, Math.max(0.12, (+e.target.value)/100));
+    document.getElementById("logoHint").textContent = state.logoScale > 0.2 ? "Large logos hide more of the code — if it won't scan, go back to 18% or less." : "QR Code only — a logo switches the code to high error-correction. Up to 20% stays reliably scannable.";
+    paint();
+  });
+
+  // ---------- brand kits (saved in this browser; export/import to move between devices) ----------
+  const KITS_KEY = "qrgrove.kits.v1", KIT_FIELDS = ["brandName","barColor","bgColor","frameColor","frame","frameText","pattern","eye","logoDataUrl","logoShape","logoScale","brandFill","accentEyes","watermark","logoCenter","custom","season","species"];
+  const loadKits = () => { try { const a = JSON.parse(localStorage.getItem(KITS_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch(e){ return []; } };
+  const storeKits = (a) => { try { localStorage.setItem(KITS_KEY, JSON.stringify(a)); return true; } catch(e){ return false; } };
+  const HEX = /^#[0-9a-f]{6}$/i;
+  function cleanKit(k){                                    // never trust imported data
+    if (!k || typeof k !== "object" || typeof k.name !== "string") return null;
+    const o = { name:k.name.slice(0,30) }, pick = (key, ok) => { if (ok(k[key])) o[key] = k[key]; };
+    pick("brandName", v => typeof v === "string" && (o.brandName = v.slice(0,40), false)); if (typeof k.brandName === "string") o.brandName = k.brandName.slice(0,40);
+    for (const c of ["barColor","bgColor"]) pick(c, v => typeof v === "string" && HEX.test(v));
+    pick("frameColor", v => v === null || (typeof v === "string" && HEX.test(v)));
+    pick("frame", v => ["none","caption","banner","border"].includes(v));
+    if (typeof k.frameText === "string") o.frameText = k.frameText.slice(0,40);
+    pick("pattern", v => ["square","round","rounded"].includes(v)); pick("eye", v => ["square","rounded","circle","leaf"].includes(v));
+    pick("logoDataUrl", v => v === null || (typeof v === "string" && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length < 900000));
+    pick("logoShape", v => ["rounded","circle","square"].includes(v)); pick("logoScale", v => typeof v === "number" && v >= 0.12 && v <= 0.24);
+    pick("brandFill", v => ["solid","gradient","image"].includes(v)); for (const b of ["accentEyes","watermark","logoCenter"]) pick(b, v => typeof v === "boolean");
+    pick("custom", v => typeof v === "boolean"); pick("season", v => typeof v === "string" && !!SEASONS[v]); pick("species", v => ["oak","pine","willow","birch"].includes(v));
+    return o;
+  }
+  function renderKits(){
+    const list = document.getElementById("kitList"); list.innerHTML = "";
+    loadKits().forEach((k, i) => {
+      const chip = document.createElement("span"); chip.className = "kit-chip"; chip.title = "Apply this brand kit";
+      const dot = document.createElement("span"); dot.className = "kit-dot"; dot.style.background = HEX.test(k.frameColor || "") ? k.frameColor : (HEX.test(k.barColor || "") ? k.barColor : "#999");
+      const name = document.createElement("span"); name.textContent = k.name;
+      const x = document.createElement("i"); x.textContent = "×"; x.title = "Delete kit";
+      chip.append(dot, name, x);
+      chip.addEventListener("click", (e) => {
+        if (e.target === x){ const a = loadKits(); a.splice(i, 1); storeKits(a); renderKits(); return; }
+        const c = cleanKit(k); if (!c) return;
+        for (const f of KIT_FIELDS) if (f in c) state[f] = c[f];
+        if (state.frameColor === undefined) state.frameColor = null;
+        syncControlsFromState(); paint(); setBrandHint('Applied "' + c.name + '".');
+      });
+      list.appendChild(chip);
+    });
+  }
+  document.getElementById("kitSave").addEventListener("click", () => {
+    const nm = (document.getElementById("kitName").value.trim() || state.brandName.trim() || "My brand").slice(0,30);
+    const kit = { name:nm }; for (const f of KIT_FIELDS) kit[f] = state[f];
+    const a = loadKits().filter(k => k.name !== nm); a.push(kit);
+    if (!storeKits(a)){ setBrandHint("Couldn't save — this browser blocked storage or it is full. Use Export kits instead."); return; }
+    document.getElementById("kitName").value = ""; renderKits(); setBrandHint('Saved "' + nm + '".');
+  });
+  document.getElementById("kitExport").addEventListener("click", () => { const a = loadKits(); if (!a.length){ setBrandHint("No saved kits to export yet."); return; } saveFile("qr-grove-brand-kits.json", new Blob([JSON.stringify(a, null, 1)], { type:"application/json" })); });
+  document.getElementById("kitImportBtn").addEventListener("click", () => document.getElementById("kitImport").click());
+  document.getElementById("kitImport").addEventListener("change", (e) => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { try {
+      const arr = JSON.parse(r.result), got = (Array.isArray(arr) ? arr : [arr]).map(cleanKit).filter(Boolean).slice(0, 20);
+      if (!got.length) throw new Error("none");
+      const a = loadKits().filter(k => !got.some(g => g.name === k.name)).concat(got);
+      if (!storeKits(a)) throw new Error("storage"); renderKits(); setBrandHint("Imported " + got.length + " brand kit" + (got.length > 1 ? "s" : "") + ".");
+    } catch(err){ setBrandHint("That file isn't a valid brand-kit export."); } };
+    r.readAsText(f);
   });
 
   // ---------- reliable switch ----------
@@ -14542,7 +14820,7 @@ root.QRTree = { create, SPECIES };
   document.getElementById("barColor").addEventListener("input", (e)=>{ state.barColor = e.target.value; state.custom = true; state.reliable = false; syncReliable(); paint(); });
   document.getElementById("bgColor").addEventListener("input", (e)=>{ state.bgColor = e.target.value; state.custom = true; state.reliable = false; syncReliable(); paint(); });
   document.getElementById("resetColors").addEventListener("click", ()=>{
-    state.custom = false; state.reliable = false; state.barColor = "#20301f"; state.bgColor = "#ffffff";
+    state.custom = false; state.reliable = false; state.barColor = "#20301f"; state.bgColor = "#ffffff"; state.frameColor = null;
     syncControlsFromState(); paint();
   });
   function syncReliable(){ reliableSwitch.setAttribute("aria-pressed", state.reliable ? "true":"false"); }
@@ -14597,6 +14875,12 @@ root.QRTree = { create, SPECIES };
     syncReliable();
     document.getElementById("barColor").value = state.barColor;
     document.getElementById("bgColor").value = state.bgColor;
+    document.getElementById("brandName").value = state.brandName;
+    document.getElementById("frameColor").value = HEX.test(state.frameColor || "") ? state.frameColor : state.barColor;
+    [...document.getElementById("logoShapeGrid").children].forEach(b => b.setAttribute("aria-pressed", b.dataset.lshape===state.logoShape ? "true":"false"));
+    document.getElementById("logoScale").value = Math.round(state.logoScale*100);
+    [...document.getElementById("brandFillGrid").children].forEach(b => b.setAttribute("aria-pressed", b.dataset.bfill===state.brandFill ? "true":"false"));
+    [...document.getElementById("brandTogGrid").children].forEach(b => b.setAttribute("aria-pressed", state[b.dataset.btog] ? "true":"false"));
   }
 
   // ---------- link input ----------
@@ -14876,6 +15160,8 @@ root.QRTree = { create, SPECIES };
       showFail("There's no image on your clipboard. Copy a picture of a code first, or press Ctrl/⌘+V here.");
     } catch(e){ showFail("Your browser blocked clipboard access. Press Ctrl/⌘+V on this page to paste instead."); }
   });
+
+  renderKits();
 
   // ---------- init ----------
   handleIncomingHash();
